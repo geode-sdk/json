@@ -6,7 +6,7 @@ using namespace json;
 
 class json::ValueImpl {
 	Type m_type;
-	std::variant<std::monostate, std::string, double, bool, ValueArray, ValueObject> m_value;
+	std::variant<std::monostate, std::string, double, bool, Array, Object> m_value;
 public:
 	template <class T>
 	ValueImpl(Type type, T value) : m_type(type), m_value(value) {}
@@ -20,8 +20,8 @@ public:
 	bool to_bool() const { return std::get<bool>(m_value); }
 	std::string to_string() const { return std::get<std::string>(m_value); }
 	double to_double() const { return std::get<double>(m_value); }
-	ValueObject& to_object() { return std::get<ValueObject>(m_value); }
-	ValueArray& to_array() { return std::get<ValueArray>(m_value); }
+	Object& to_object() { return std::get<Object>(m_value); }
+	Array& to_array() { return std::get<Array>(m_value); }
 };
 
 char take_one(std::string_view& string) {
@@ -185,7 +185,7 @@ ValuePtr parse_element(std::string_view& source);
 ValuePtr parse_object(std::string_view& source) {
 	take_one(source);
 	skip_ws(source);
-	ValueObject object;
+	Object object;
 	if (peek(source) != '}') {
 		while (true) {
 			skip_ws(source);
@@ -214,7 +214,7 @@ ValuePtr parse_object(std::string_view& source) {
 ValuePtr parse_array(std::string_view& source) {
 	take_one(source);
 	skip_ws(source);
-	ValueArray array;
+	Array array;
 	if (peek(source) != ']') {
 		while (true) {
 			array.push_back(ValueImpl::to_value(parse_element(source)));
@@ -288,11 +288,11 @@ Value::Value(bool value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Boolean, value);
 }
 
-Value::Value(ValueObject value) {
+Value::Value(Object value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Object, value);
 }
 
-Value::Value(ValueArray value) {
+Value::Value(Array value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Array, value);
 }
 
@@ -325,11 +325,11 @@ std::string Value::to_string() const { return m_impl->to_string(); }
 int Value::to_int() const { return static_cast<int>(m_impl->to_double()); }
 double Value::to_double() const { return static_cast<int>(m_impl->to_double()); }
 
-const ValueObject& Value::to_object() const { return m_impl->to_object(); }
-ValueObject& Value::to_object() { return m_impl->to_object(); }
+const Object& Value::to_object() const { return m_impl->to_object(); }
+Object& Value::to_object() { return m_impl->to_object(); }
 
-const ValueArray& Value::to_array() const { return m_impl->to_array(); }
-ValueArray& Value::to_array() { return m_impl->to_array(); }
+const Array& Value::to_array() const { return m_impl->to_array(); }
+Array& Value::to_array() { return m_impl->to_array(); }
 
 Value Value::from_str(std::string_view source) {
 	return Value(parse_json(source));
@@ -400,18 +400,18 @@ bool Value::operator==(const Value& other) const {
 	}
 }
 
-ValueObject::ValueObject(const ValueObject& object) : m_data(object.m_data) {}
-ValueObject::ValueObject(ValueObject&& object) : m_data(std::move(object.m_data)) {}
-ValueObject::ValueObject(std::initializer_list<value_type> init) : m_data(init) {}
+Object::Object(const Object& object) : m_data(object.m_data) {}
+Object::Object(Object&& object) : m_data(std::move(object.m_data)) {}
+Object::Object(std::initializer_list<value_type> init) : m_data(init) {}
 
-ValueObject::iterator ValueObject::begin() { return m_data.begin(); }
-ValueObject::iterator ValueObject::end() { return m_data.end(); }
-ValueObject::const_iterator ValueObject::begin() const { return m_data.begin(); }
-ValueObject::const_iterator ValueObject::end() const { return m_data.end(); }
-ValueObject::const_iterator ValueObject::cbegin() const { return m_data.cbegin(); }
-ValueObject::const_iterator ValueObject::cend() const { return m_data.cend(); }
+Object::iterator Object::begin() { return m_data.begin(); }
+Object::iterator Object::end() { return m_data.end(); }
+Object::const_iterator Object::begin() const { return m_data.begin(); }
+Object::const_iterator Object::end() const { return m_data.end(); }
+Object::const_iterator Object::cbegin() const { return m_data.cbegin(); }
+Object::const_iterator Object::cend() const { return m_data.cend(); }
 
-bool ValueObject::operator==(const ValueObject& other) const {
+bool Object::operator==(const Object& other) const {
 	for (const auto& [key, value] : *this) {
 		if (auto it = other.find(key); it != other.end()) {
 			if (value != it->second) return false;
@@ -422,7 +422,7 @@ bool ValueObject::operator==(const ValueObject& other) const {
 	return true;
 }
 
-ValueObject::iterator ValueObject::find(std::string_view key) {
+Object::iterator Object::find(std::string_view key) {
 	auto end = this->end();
 	for (auto it = this->begin(); it != end; ++it) {
 		if (it->first == key) return it;
@@ -430,7 +430,7 @@ ValueObject::iterator ValueObject::find(std::string_view key) {
 	return end;
 }
 
-ValueObject::const_iterator ValueObject::find(std::string_view key) const {
+Object::const_iterator Object::find(std::string_view key) const {
 	auto end = this->cend();
 	for (auto it = this->cbegin(); it != end; ++it) {
 		if (it->first == key) return it;
@@ -438,7 +438,7 @@ ValueObject::const_iterator ValueObject::find(std::string_view key) const {
 	return end;
 }
 
-std::pair<ValueObject::iterator, bool> ValueObject::insert(const ValueObject::value_type& value) {
+std::pair<Object::iterator, bool> Object::insert(const Object::value_type& value) {
 	if (auto it = this->find(value.first); it != this->end()) {
 		return {it, false};
 	} else {
@@ -447,11 +447,11 @@ std::pair<ValueObject::iterator, bool> ValueObject::insert(const ValueObject::va
 	}
 }
 
-size_t ValueObject::count(std::string_view key) const {
+size_t Object::count(std::string_view key) const {
 	return this->find(key) == this->end() ? 0 : 1;
 }
 
-Value& ValueObject::operator[](std::string_view key) {
+Value& Object::operator[](std::string_view key) {
 	if (auto it = this->find(key); it != this->end()) {
 		return it->second;
 	} else {

@@ -20,9 +20,9 @@ namespace json {
 
 	class Value;
 
-	using ValueArray = std::vector<Value>;
+	using Array = std::vector<Value>;
 
-	class ValueObject;
+	class Object;
 
 	class Value {
 		std::unique_ptr<ValueImpl> m_impl;
@@ -34,8 +34,8 @@ namespace json {
 		Value(int value);
 		Value(double value);
 		Value(bool value);
-		Value(ValueObject value);
-		Value(ValueArray value);
+		Value(Object value);
+		Value(Array value);
 		Value(std::nullptr_t);
 
 		Value(const Value&);
@@ -69,29 +69,29 @@ namespace json {
 		double to_double() const;
 		bool is_null() const;
 
-		const ValueObject& to_object() const;
-		ValueObject& to_object();
+		const Object& to_object() const;
+		Object& to_object();
 		
-		const ValueArray& to_array() const;
-		ValueArray& to_array();
+		const Array& to_array() const;
+		Array& to_array();
 
 		bool operator==(const Value&) const;
 	};
 
-	class ValueObject  {
+	class Object  {
 		using value_type = std::pair<std::string, Value>;
 		using iterator = typename std::vector<value_type>::iterator;
 		using const_iterator = typename std::vector<value_type>::const_iterator;
 		std::vector<value_type> m_data;
 	public:
-		ValueObject() = default;
-		ValueObject(const ValueObject&);
-		ValueObject(ValueObject&&);
+		Object() = default;
+		Object(const Object&);
+		Object(Object&&);
 
 		template <class It>
-		ValueObject(It first, It last) : m_data(first, last) {}
+		Object(It first, It last) : m_data(first, last) {}
 
-		ValueObject(std::initializer_list<value_type> init);
+		Object(std::initializer_list<value_type> init);
 
 		size_t size() const { return m_data.size(); }
 		bool empty() const { return m_data.empty(); }
@@ -113,6 +113,6 @@ namespace json {
 		std::pair<iterator, bool> insert(const value_type& value);
 		size_t count(std::string_view key) const;
 
-		bool operator==(const ValueObject& other) const;
+		bool operator==(const Object& other) const;
 	};
 }

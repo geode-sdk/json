@@ -50,7 +50,7 @@ void debug(const json::Value& value) {
 }
 
 int main() {
-	json::Value foo = json::ValueObject {
+	json::Value foo = json::Object {
 		{"hello", 69}
 	};
 
@@ -70,8 +70,8 @@ int main() {
 	debug(bar); std::cout << std::endl;
 
 	{
-		json::Value obj1 = json::ValueObject {};
-		json::Value obj2 = json::ValueObject {};
+		json::Value obj1 = json::Object {};
+		json::Value obj2 = json::Object {};
 
 		obj1["hello"] = 10;
 		obj1["world"] = 20;
