@@ -31,6 +31,7 @@ namespace json {
 	public:
 		Value();
 		Value(std::string value);
+		Value(const char* value);
 		Value(int value);
 		Value(double value);
 		Value(bool value);

@@ -272,6 +272,8 @@ ValuePtr parse_json(std::string_view source) {
 
 Value::Value() : Value(nullptr) {}
 
+Value::Value(const char* str) : Value(std::string(str)) {}
+
 Value::Value(std::string value) {
 	m_impl = std::make_unique<ValueImpl>(Type::String, std::move(value));
 }

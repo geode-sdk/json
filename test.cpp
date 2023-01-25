@@ -84,4 +84,11 @@ int main() {
 
 		std::cout << std::boolalpha << "equal? " << (obj1 == obj2) << std::endl;
 	}
+
+	{
+		json::Value obj(
+			{ { "hello", "world!"}, {"sux", 123} }
+		);
+		debug(obj); std::cout << std::endl;
+	}
 }
