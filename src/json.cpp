@@ -56,8 +56,6 @@ std::string_view take_n(std::string_view& string, int n) {
 using ValuePtr = std::unique_ptr<ValueImpl>;
 
 using namespace std::literals::string_view_literals;
-using namespace std::literals::string_literals;
-
 
 ValuePtr parse_constant(std::string_view& source) {
 	switch (peek(source)) {
@@ -265,7 +263,6 @@ ValuePtr parse_element(std::string_view& source) {
 
 ValuePtr parse_json(std::string_view source) {
 	auto value = parse_element(source);
-	skip_ws(source);
 	if (!source.empty()) throw std::runtime_error("expected eof");
 	return value;
 }
