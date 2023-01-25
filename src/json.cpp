@@ -13,15 +13,15 @@ public:
 	ValueImpl(const ValueImpl&) = default;
 	Type type() const { return m_type; }
 
-	static Value to_value(std::unique_ptr<ValueImpl> impl) {
+	static Value as_value(std::unique_ptr<ValueImpl> impl) {
 		return Value(std::move(impl));
 	}
 
-	bool to_bool() const { return std::get<bool>(m_value); }
-	std::string to_string() const { return std::get<std::string>(m_value); }
-	double to_double() const { return std::get<double>(m_value); }
-	Object& to_object() { return std::get<Object>(m_value); }
-	Array& to_array() { return std::get<Array>(m_value); }
+	bool as_bool() const { return std::get<bool>(m_value); }
+	std::string as_string() const { return std::get<std::string>(m_value); }
+	double as_double() const { return std::get<double>(m_value); }
+	Object& as_object() { return std::get<Object>(m_value); }
+	Array& as_array() { return std::get<Array>(m_value); }
 };
 
 char take_one(std::string_view& string) {
@@ -195,7 +195,7 @@ ValuePtr parse_object(std::string_view& source) {
 			if (take_one(source) != ':') throw std::runtime_error("missing colon");
 			
 			auto value = parse_element(source);
-			object.insert({key, ValueImpl::to_value(std::move(value))});
+			object.insert({key, ValueImpl::as_value(std::move(value))});
 
 			char c = peek(source);
 			if (c == ',') {
@@ -217,7 +217,7 @@ ValuePtr parse_array(std::string_view& source) {
 	Array array;
 	if (peek(source) != ']') {
 		while (true) {
-			array.push_back(ValueImpl::to_value(parse_element(source)));
+			array.push_back(ValueImpl::as_value(parse_element(source)));
 
 			char c = peek(source);
 			if (c == ',') {
@@ -322,16 +322,16 @@ Type Value::type() const {
 bool Value::is_null() const { return type() == Type::Null; }
 
 // TODO: these will throw a variant access exception, maybe make our own error type?
-bool Value::to_bool() const { return m_impl->to_bool(); }
-std::string Value::to_string() const { return m_impl->to_string(); }
-int Value::to_int() const { return static_cast<int>(m_impl->to_double()); }
-double Value::to_double() const { return static_cast<int>(m_impl->to_double()); }
+bool Value::as_bool() const { return m_impl->as_bool(); }
+std::string Value::as_string() const { return m_impl->as_string(); }
+int Value::as_int() const { return static_cast<int>(m_impl->as_double()); }
+double Value::as_double() const { return static_cast<int>(m_impl->as_double()); }
 
-const Object& Value::to_object() const { return m_impl->to_object(); }
-Object& Value::to_object() { return m_impl->to_object(); }
+const Object& Value::as_object() const { return m_impl->as_object(); }
+Object& Value::as_object() { return m_impl->as_object(); }
 
-const Array& Value::to_array() const { return m_impl->to_array(); }
-Array& Value::to_array() { return m_impl->to_array(); }
+const Array& Value::as_array() const { return m_impl->as_array(); }
+Array& Value::as_array() { return m_impl->as_array(); }
 
 Value Value::from_str(std::string_view source) {
 	return Value(parse_json(source));
@@ -339,7 +339,7 @@ Value Value::from_str(std::string_view source) {
 
 std::optional<std::reference_wrapper<Value>> Value::try_get(std::string_view key) {
 	if (type() != Type::Object) return std::nullopt;
-	auto& obj = to_object();
+	auto& obj = as_object();
 	if (auto it = obj.find(key); it != obj.end()) {
 		return it->second;
 	} else {
@@ -349,7 +349,7 @@ std::optional<std::reference_wrapper<Value>> Value::try_get(std::string_view key
 
 std::optional<std::reference_wrapper<const Value>> Value::try_get(std::string_view key) const {
 	if (type() != Type::Object) return std::nullopt;
-	const auto& obj = to_object();
+	const auto& obj = as_object();
 	if (auto it = obj.find(key); it != obj.end()) {
 		return it->second;
 	} else {
@@ -359,14 +359,14 @@ std::optional<std::reference_wrapper<const Value>> Value::try_get(std::string_vi
 
 std::optional<std::reference_wrapper<Value>> Value::try_get(size_t index) {
 	if (type() != Type::Array) return std::nullopt;
-	auto& arr = to_array();
+	auto& arr = as_array();
 	if (index < arr.size()) return arr[index];
 	else return std::nullopt;
 }
 
 std::optional<std::reference_wrapper<const Value>> Value::try_get(size_t index) const {
 	if (type() != Type::Array) return std::nullopt;
-	const auto& arr = to_array();
+	const auto& arr = as_array();
 	if (index < arr.size()) return arr[index];
 	else return std::nullopt;
 }
@@ -374,7 +374,7 @@ std::optional<std::reference_wrapper<const Value>> Value::try_get(size_t index) 
 
 Value& Value::operator[](std::string_view key) {
 	if (type() != Type::Object) throw std::runtime_error("not an object");
-	auto& obj = to_object();
+	auto& obj = as_object();
 	return obj[key];
 }
 
@@ -394,11 +394,11 @@ bool Value::operator==(const Value& other) const {
 	if (type() != other.type()) return false;
 	switch (type()) {
 		case Type::Null: return true;
-		case Type::Boolean: return to_bool() == other.to_bool();
-		case Type::String: return to_string() == other.to_string();
-		case Type::Number: return to_double() == other.to_double();
-		case Type::Array: return to_array() == other.to_array();
-		case Type::Object: return to_object() == other.to_object();
+		case Type::Boolean: return as_bool() == other.as_bool();
+		case Type::String: return as_string() == other.as_string();
+		case Type::Number: return as_double() == other.as_double();
+		case Type::Array: return as_array() == other.as_array();
+		case Type::Object: return as_object() == other.as_object();
 	}
 }
 

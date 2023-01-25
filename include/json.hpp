@@ -64,17 +64,17 @@ namespace json {
 
 		Type type() const;
 
-		bool to_bool() const;
-		std::string to_string() const;
-		int to_int() const;
-		double to_double() const;
+		bool as_bool() const;
+		std::string as_string() const;
+		int as_int() const;
+		double as_double() const;
 		bool is_null() const;
 
-		const Object& to_object() const;
-		Object& to_object();
+		const Object& as_object() const;
+		Object& as_object();
 		
-		const Array& to_array() const;
-		Array& to_array();
+		const Array& as_array() const;
+		Array& as_array();
 
 		bool operator==(const Value&) const;
 	};

@@ -12,23 +12,28 @@ std::string read_file(std::string filepath) {
 	return std::move(ss).str();
 }
 
+template <class S>
+void println(S str) {
+	std::cout << str << std::endl;
+}
+
 void debug(const json::Value& value) {
 	switch (value.type()) {
 		case json::Type::String: {
-			std::cout << '"' << value.to_string() << '"';
+			std::cout << '"' << value.as_string() << '"';
 		} break;
 		case json::Type::Number: {
-			std::cout << value.to_double();
+			std::cout << value.as_double();
 		} break;
 		case json::Type::Boolean: {
-			std::cout << std::boolalpha << value.to_bool();
+			std::cout << std::boolalpha << value.as_bool();
 		} break;
 		case json::Type::Null: {
 			std::cout << "null";
 		} break;
 		case json::Type::Object: {
 			std::cout << '{';
-			const auto& obj = value.to_object();
+			const auto& obj = value.as_object();
 			for (const auto& [key, value] : obj) {
 				std::cout << '"' << key << "\": ";
 				debug(value);
@@ -38,7 +43,7 @@ void debug(const json::Value& value) {
 		} break;
 		case json::Type::Array: {
 			std::cout << '[';
-			const auto& obj = value.to_array();
+			const auto& obj = value.as_array();
 			for (const auto& value : obj) {
 				debug(value);
 				std::cout << ", ";
@@ -90,5 +95,63 @@ int main() {
 			{ { "hello", "world!"}, {"sux", 123} }
 		);
 		debug(obj); std::cout << std::endl;
+	}
+
+	{
+		auto obj = json::Value::from_str(R"(
+{
+    "geode": "@PROJECT_VERSION@",
+    "id": "geode.loader",
+    "version": "@PROJECT_VERSION@@PROJECT_VERSION_SUFFIX@",
+    "name": "Geode",
+    "developer": "Geode Team",
+    "description": "The Geode mod loader",
+    "repository": "https://github.com/geode-sdk/geode",
+    "resources": {
+        "fonts": {
+            "mdFont": {
+                "path": "fonts/Ubuntu-Regular.ttf",
+                "size": 80
+            },
+            "mdFontB": {
+                "path": "fonts/Ubuntu-Bold.ttf",
+                "size": 80
+            },
+            "mdFontI": {
+                "path": "fonts/Ubuntu-Italic.ttf",
+                "size": 80
+            },
+            "mdFontBI": {
+                "path": "fonts/Ubuntu-BoldItalic.ttf",
+                "size": 80
+            },
+            "mdFontMono": {
+                "path": "fonts/UbuntuMono-Regular.ttf",
+                "size": 80
+            }
+        },
+        "sprites": [
+            "images/*.png"
+        ],
+        "files": [
+            "sounds/*.ogg"
+        ],
+        "spritesheets": {
+            "LogoSheet": [
+                "logos/*.png"
+            ],
+            "APISheet": [
+                "*.png"
+            ],
+            "BlankSheet": [
+                "blanks/*.png"
+            ]
+        }
+    }
+}
+		)");
+		debug(obj); endl(std::cout);
+		println(obj["resources"]["spritesheets"]["APISheet"][0].as_string());
+		println(obj["resources"]["fonts"]["mdFont"]["size"].as_double());
 	}
 }
