@@ -34,6 +34,9 @@ namespace json {
 	template <class T>
 	struct Serialize;
 
+	static constexpr int NO_INDENTATION = 0;
+	static constexpr int TAB_INDENTATION = -1;
+
 	class Value {
 		std::unique_ptr<ValueImpl> m_impl;
 		friend ValueImpl;
@@ -102,6 +105,10 @@ namespace json {
 
 		bool contains(std::string_view key) const;
 
+		// Use json::NO_INDENTATION for a compact json, json::TAB_INDENTATION for tabs,
+		// otherwise specifies the amount of spaces
+		std::string dump(int indentation_size = 4) const;
+
 		template <class T>
 		decltype(auto) as() const {
 			if constexpr (std::is_same_v<T, bool>) {
@@ -118,6 +125,8 @@ namespace json {
 				return as_object();
 			} else if constexpr (std::is_constructible_v<std::string, T>) {
 				return as_string();
+			} else {
+				static_assert(!std::is_same_v<T, T>, "no conversion found from json::Value to T");
 			}
 		}
 
@@ -145,6 +154,7 @@ namespace json {
 				case Type::Bool: return std::is_same_v<T, bool>;
 				case Type::Null: return false;
 			}
+			return false;
 		}
 
 		template <class T, class Key>

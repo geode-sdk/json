@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <cassert>
 
 std::string read_file(std::string filepath) {
 	std::ifstream is { filepath, std::ios::binary };
@@ -206,5 +207,31 @@ int main() {
 		json::Object obj;
 		obj["hooray"] = value;
 		debug(obj); endl(std::cout);
+	}
+
+	{
+		auto obj = json::parse(R"(
+			{
+				"hello": "world",
+				"nice": null,
+				"nested": {
+					"objects": ["are", "cool", "\nice \t\ry \buddy, \format me i\f you can \\ \" \\\" "],
+					"int": 23,
+					"half": 11.5,
+					"nested": {
+						"again": true
+					}
+				}
+			}
+		)");
+		println(obj["nested"]["half"].as_double());
+		println(obj.dump());
+		println(obj.dump(json::NO_INDENTATION));
+		println(obj.dump(json::TAB_INDENTATION));
+
+		assert(obj == json::parse(obj.dump()));
+		assert(obj == json::parse(obj.dump(json::NO_INDENTATION)));
+		assert(obj == json::parse(obj.dump(json::TAB_INDENTATION)));
+		assert(obj == json::parse(obj.dump(69)));
 	}
 }

@@ -1,6 +1,15 @@
 #include <json.hpp>
 #include <variant>
 #include <stdexcept>
+#include <cmath>
+
+// macos does not seem to support charconv.. so do this as a workaround
+#ifndef __APPLE__
+#include <charconv>
+#include <array>
+#else
+#include <sstream>
+#endif
 
 using namespace json;
 
@@ -174,8 +183,17 @@ ValuePtr parse_number(std::string_view& source) {
 		}
 		take_digits();
 	}
-	const std::string str(start.substr(0, size));
-	return std::make_unique<ValueImpl>(Type::Number, std::stod(str));
+	#ifdef __APPLE__
+		const std::string str(start.substr(0, size));
+		// FIXME: std::stod is locale specific, might break on some machines
+		return std::make_unique<ValueImpl>(Type::Number, std::stod(str));
+	#else
+		double value;
+		if (auto result = std::from_chars(start.data(), start.data() + size, value); result.ec != std::errc()) {
+			throw std::runtime_error("failed to parse number");
+		}
+		return std::make_unique<ValueImpl>(Type::Number, value);
+	#endif
 }
 
 ValuePtr parse_element(std::string_view& source);
@@ -316,7 +334,7 @@ Type Value::type() const {
 bool Value::as_bool() const { return m_impl->as_bool(); }
 std::string Value::as_string() const { return m_impl->as_string(); }
 int Value::as_int() const { return static_cast<int>(m_impl->as_double()); }
-double Value::as_double() const { return static_cast<int>(m_impl->as_double()); }
+double Value::as_double() const { return m_impl->as_double(); }
 
 const Object& Value::as_object() const { return m_impl->as_object(); }
 Object& Value::as_object() { return m_impl->as_object(); }
@@ -396,6 +414,109 @@ bool Value::operator==(const Value& other) const {
 		case Type::Array: return as_array() == other.as_array();
 		case Type::Object: return as_object() == other.as_object();
 	}
+}
+
+void dump_impl_string(const std::string& str, std::string& result) {
+	result.push_back('"');
+	for (auto c : str) {
+		switch (c) {
+			case '\b': result += "\\b"sv; break;
+			case '\f': result += "\\f"sv; break;
+			case '\n': result += "\\n"sv; break;
+			case '\r': result += "\\r"sv; break;
+			case '\t': result += "\\t"sv; break;
+			case '"': result += "\\\""sv; break;
+			case '\\': result += "\\\\"sv; break;
+			default: result.push_back(c); break;
+		}
+	}
+	result.push_back('"');
+}
+
+void dump_impl(const Value& value, std::string& result, int indentation, int depth) {
+	switch (value.type()) {
+		case Type::Null: {
+			result += "null"sv;
+		} break;
+		case Type::Bool: {
+			result += value.as_bool() ? "true"sv : "false"sv;
+		} break;
+		case Type::String: {
+			dump_impl_string(value.as_string(), result);
+		} break;
+		case Type::Number: {
+			auto number = value.as_double();
+			#ifdef __APPLE__
+				std::stringstream stream;
+				stream.imbue(std::locale("C"));
+				stream << number;
+				result += stream.str();
+			#else
+				std::array<char, 32> buffer;
+				auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
+				if (chars_result.ec == std::errc::value_too_large) {
+					// this should never happen, i think
+					throw std::runtime_error("failed to convert number to string");
+				}
+				result += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
+			#endif
+		} break;
+		case Type::Array: {
+			result.push_back('[');
+			const auto& arr = value.as_array();
+			bool first = true;
+			for (const auto& value : arr) {
+				if (!first) {
+					result.push_back(',');
+					if (indentation != json::NO_INDENTATION)
+						result.push_back(' ');
+				}
+				first = false;
+				dump_impl(value, result, indentation, depth);
+			}
+			result.push_back(']');
+		} break;
+		case Type::Object: {
+			result.push_back('{');
+			const auto add_line = [&](int depth) {
+				if (indentation != json::NO_INDENTATION) {
+					result.push_back('\n');
+					const char iden = indentation == json::TAB_INDENTATION ? '\t' : ' ';
+					const size_t size = indentation == json::TAB_INDENTATION ? depth : depth * indentation;
+					result.reserve(result.size() + size);
+					for (size_t i = 0; i < size; ++i) {
+						result.push_back(iden);
+					}
+				}
+			};
+			add_line(depth + 1);
+			const auto& obj = value.as_object();
+			bool first = true;
+			for (const auto& [key, value] : obj) {
+				if (!first) {
+					result.push_back(',');
+					add_line(depth + 1);
+				}
+				first = false;
+
+				dump_impl_string(key, result);
+				
+				result.push_back(':');
+				if (indentation != json::NO_INDENTATION)
+					result.push_back(' ');
+
+				dump_impl(value, result, indentation, depth + 1);
+			}
+			add_line(depth);
+			result.push_back('}');
+		} break;
+	}
+}
+
+std::string Value::dump(int indentation_size) const {
+	std::string result;
+	dump_impl(*this, result, indentation_size, 0);
+	return result;
 }
 
 Object::Object(const Object& object) : m_data(object.m_data) {}
