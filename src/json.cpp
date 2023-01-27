@@ -61,10 +61,10 @@ ValuePtr parse_constant(std::string_view& source) {
 	switch (peek(source)) {
 		case 't':
 			if (take_n(source, 4) != "true"sv) break;
-			return std::make_unique<ValueImpl>(Type::Boolean, true);
+			return std::make_unique<ValueImpl>(Type::Bool, true);
 		case 'f':
 			if (take_n(source, 5) != "false"sv) break;
-			return std::make_unique<ValueImpl>(Type::Boolean, false);
+			return std::make_unique<ValueImpl>(Type::Bool, false);
 		case 'n':
 			if (take_n(source, 4) != "null"sv) break;
 			return std::make_unique<ValueImpl>(Type::Null, std::monostate{});
@@ -275,16 +275,12 @@ Value::Value(std::string value) {
 	m_impl = std::make_unique<ValueImpl>(Type::String, std::move(value));
 }
 
-Value::Value(int value) {
-	m_impl = std::make_unique<ValueImpl>(Type::Number, static_cast<double>(value));
-}
-
 Value::Value(double value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
 
 Value::Value(bool value) {
-	m_impl = std::make_unique<ValueImpl>(Type::Boolean, value);
+	m_impl = std::make_unique<ValueImpl>(Type::Bool, value);
 }
 
 Value::Value(Object value) {
@@ -316,8 +312,6 @@ Type Value::type() const {
 	return m_impl->type();
 }
 
-bool Value::is_null() const { return type() == Type::Null; }
-
 // TODO: these will throw a variant access exception, maybe make our own error type?
 bool Value::as_bool() const { return m_impl->as_bool(); }
 std::string Value::as_string() const { return m_impl->as_string(); }
@@ -332,6 +326,11 @@ Array& Value::as_array() { return m_impl->as_array(); }
 
 Value Value::from_str(std::string_view source) {
 	return Value(parse_json(source));
+}
+
+bool Value::contains(std::string_view key) const {
+	if (!is_object()) return false;
+	return as_object().count(key) == 1;
 }
 
 std::optional<std::reference_wrapper<Value>> Value::try_get(std::string_view key) {
@@ -391,7 +390,7 @@ bool Value::operator==(const Value& other) const {
 	if (type() != other.type()) return false;
 	switch (type()) {
 		case Type::Null: return true;
-		case Type::Boolean: return as_bool() == other.as_bool();
+		case Type::Bool: return as_bool() == other.as_bool();
 		case Type::String: return as_string() == other.as_string();
 		case Type::Number: return as_double() == other.as_double();
 		case Type::Array: return as_array() == other.as_array();

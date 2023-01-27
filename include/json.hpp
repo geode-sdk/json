@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <stdexcept>
 
 namespace json {
 	enum class Type {
@@ -12,7 +13,7 @@ namespace json {
 		Array,
 		String,
 		Number,
-		Boolean,
+		Bool,
 		Null,
 	};
 
@@ -24,6 +25,15 @@ namespace json {
 
 	class Object;
 
+	using JsonException = std::runtime_error;
+
+	// Specialize this class and implement the following methods (not all required)
+	// static T from_json(const json::Value&);
+	// static json::Value to_json(const T&);
+	// static bool is_json(const json::Value&);
+	template <class T>
+	struct Serialize;
+
 	class Value {
 		std::unique_ptr<ValueImpl> m_impl;
 		friend ValueImpl;
@@ -32,17 +42,23 @@ namespace json {
 		Value();
 		Value(std::string value);
 		Value(const char* value);
-		Value(int value);
 		Value(double value);
 		Value(bool value);
 		Value(Object value);
 		Value(Array value);
 		Value(std::nullptr_t);
+		template <class T>
+		requires std::is_integral_v<T>
+		Value(T value) : Value(static_cast<double>(value)) {}
 
 		Value(const Value&);
 		~Value();
 
 		Value& operator=(Value);
+
+		template <class T>
+		requires requires(T value) { Serialize<std::decay_t<T>>::to_json(value); }
+		Value(T&& value) : Value(Serialize<std::decay_t<T>>::to_json(std::forward<T>(value))) {}
 
 		template <class T>
 		// Prevents implicit conversion from pointer to bool
@@ -68,7 +84,6 @@ namespace json {
 		std::string as_string() const;
 		int as_int() const;
 		double as_double() const;
-		bool is_null() const;
 
 		const Object& as_object() const;
 		Object& as_object();
@@ -77,6 +92,72 @@ namespace json {
 		Array& as_array();
 
 		bool operator==(const Value&) const;
+
+		bool is_null() const { return type() == Type::Null; }
+		bool is_string() const { return type() == Type::String; }
+		bool is_number() const { return type() == Type::Number; }
+		bool is_bool() const { return type() == Type::Bool; }
+		bool is_array() const { return type() == Type::Array; }
+		bool is_object() const { return type() == Type::Object; }
+
+		bool contains(std::string_view key) const;
+
+		template <class T>
+		decltype(auto) as() const {
+			if constexpr (std::is_same_v<T, bool>) {
+				return as_bool();
+			} else if constexpr (std::is_integral_v<T>) {
+				return as_int();
+			} else if constexpr (std::is_floating_point_v<T>) {
+				return as_double();
+			} else if constexpr (requires(const Value& json) { Serialize<T>::from_json(json); }) {
+				return Serialize<T>::from_json(*this);
+			} else if constexpr (std::is_same_v<T, Array>) {
+				return as_array();
+			} else if constexpr (std::is_same_v<T, Object>) {
+				return as_object();
+			} else if constexpr (std::is_constructible_v<std::string, T>) {
+				return as_string();
+			}
+		}
+
+		template <class T>
+		decltype(auto) as() {
+			if constexpr (std::is_same_v<T, Array>) {
+				return as_array();
+			} else if constexpr (std::is_same_v<T, Object>) {
+				return as_object();
+			} else {
+				return static_cast<const Value*>(this)->as<T>();
+			}
+		}
+
+		template <class T>
+		bool is() const {
+			if constexpr (requires(const Value& json) { Serialize<T>::is_json(json); }) {
+				return Serialize<T>::is_json(*this);
+			}
+			switch (type()) {
+				case Type::Array: return std::is_same_v<T, Array>;
+				case Type::Object: return std::is_same_v<T, Object>;
+				case Type::String: return std::is_constructible_v<std::string, T>;
+				case Type::Number: return std::is_integral_v<T> || std::is_floating_point_v<T>;
+				case Type::Bool: return std::is_same_v<T, bool>;
+				case Type::Null: return false;
+			}
+		}
+
+		template <class T, class Key>
+		decltype(auto) get(Key&& key_or_index) const {
+			const auto value = this->operator[](std::forward<Key>(key_or_index));
+			return value.template as<T>();
+		}
+
+		template <class T, class Key>
+		decltype(auto) get(Key&& key_or_index) {
+			const auto value = this->operator[](std::forward<Key>(key_or_index));
+			return value.template as<T>();
+		}
 	};
 
 	class Object  {
@@ -116,4 +197,8 @@ namespace json {
 
 		bool operator==(const Object& other) const;
 	};
+
+	inline Value parse(std::string_view source) {
+		return Value::from_str(source);
+	}
 }

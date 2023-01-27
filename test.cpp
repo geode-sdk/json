@@ -25,7 +25,7 @@ void debug(const json::Value& value) {
 		case json::Type::Number: {
 			std::cout << value.as_double();
 		} break;
-		case json::Type::Boolean: {
+		case json::Type::Bool: {
 			std::cout << std::boolalpha << value.as_bool();
 		} break;
 		case json::Type::Null: {
@@ -53,6 +53,39 @@ void debug(const json::Value& value) {
 		default: break;
 	}
 }
+
+struct CoolStruct {
+	std::string name;
+	int value;
+};
+
+template <>
+struct json::Serialize<CoolStruct> {
+	static json::Value to_json(const CoolStruct& cool) {
+		return json::Object {
+			{ "value", cool.value },
+			{ "name", cool.name }
+		};
+	}
+	static CoolStruct from_json(const json::Value& value) {
+		return CoolStruct {
+			.name = value["name"].as_string(),
+			.value = value["value"].as_int()
+		};
+	}
+};
+
+template <class T>
+requires std::is_enum_v<T>
+struct json::Serialize<T> {
+	static json::Value to_json(const T& value) {
+		return json::Value(static_cast<int>(value));
+	}
+};
+
+enum class Hooray {
+	Hooray
+};
 
 int main() {
 	json::Value foo = json::Object {
@@ -153,5 +186,25 @@ int main() {
 		debug(obj); endl(std::cout);
 		println(obj["resources"]["spritesheets"]["APISheet"][0].as_string());
 		println(obj["resources"]["fonts"]["mdFont"]["size"].as_double());
+	}
+
+	{
+		CoolStruct cool {
+			.name = "hello",
+			.value = 123
+		};
+		json::Value obj = json::Object {};
+		obj["cool"] = cool;
+		debug(obj); endl(std::cout);
+
+		auto another = obj.get<CoolStruct>("cool");
+		std::cout << another.name << std::endl;
+	}
+
+	{
+		Hooray value = Hooray::Hooray;
+		json::Object obj;
+		obj["hooray"] = value;
+		debug(obj); endl(std::cout);
 	}
 }
