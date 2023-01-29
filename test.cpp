@@ -234,4 +234,10 @@ int main() {
 		assert(obj == json::parse(obj.dump(json::TAB_INDENTATION)));
 		assert(obj == json::parse(obj.dump(69)));
 	}
+	{
+		json::Value json;
+		json["hello"] = "world";
+		println(json.dump());
+		assert(json.dump(json::NO_INDENTATION) == R"({"hello":"world"})");
+	}
 }

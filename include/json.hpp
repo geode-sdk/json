@@ -55,6 +55,7 @@ namespace json {
 		Value(T value) : Value(static_cast<double>(value)) {}
 
 		Value(const Value&);
+		Value(Value&&);
 		~Value();
 
 		Value& operator=(Value);

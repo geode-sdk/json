@@ -285,7 +285,7 @@ ValuePtr parse_json(std::string_view source) {
 	return value;
 }
 
-Value::Value() : Value(nullptr) {}
+Value::Value() : Value(Object{}) {}
 
 Value::Value(const char* str) : Value(std::string(str)) {}
 
@@ -317,6 +317,10 @@ Value::Value(std::unique_ptr<ValueImpl> impl) : m_impl(std::move(impl)) {}
 
 Value::Value(const Value& other) {
 	m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
+}
+
+Value::Value(Value&& other) {
+	m_impl.swap(other.m_impl);
 }
 
 Value& Value::operator=(Value value) {
@@ -402,6 +406,11 @@ Value& Value::operator[](size_t index) {
 
 const Value& Value::operator[](size_t index) const {
 	return try_get(index).value();
+}
+
+void Value::set(std::string_view key, Value value) {
+	if (type() != Type::Object) throw std::runtime_error("not an object");
+	as_object().insert({std::string(key), value});
 }
 
 bool Value::operator==(const Value& other) const {
