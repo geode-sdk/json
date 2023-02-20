@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cassert>
+#include <serialize.hpp>
 
 std::string read_file(std::string filepath) {
 	std::ifstream is { filepath, std::ios::binary };
