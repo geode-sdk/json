@@ -135,6 +135,7 @@ bool Value::operator==(const Value& other) const {
 		case Type::Number: return as_double() == other.as_double();
 		case Type::Array: return as_array() == other.as_array();
 		case Type::Object: return as_object() == other.as_object();
+		default: return false;
 	}
 }
 

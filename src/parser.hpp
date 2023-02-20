@@ -20,7 +20,7 @@ void skip_ws(std::string_view& string) {
 	}
 }
 
-std::string_view take_n(std::string_view& string, int n) {
+std::string_view take_n(std::string_view& string, size_t n) {
 	if (string.size() < n) throw std::runtime_error("eof");
 	const auto sub = string.substr(0, n);
 	string = string.substr(n);
