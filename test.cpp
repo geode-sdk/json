@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cassert>
+#include <json/stl_serialize.hpp>
 
 std::string read_file(std::string filepath) {
 	std::ifstream is { filepath, std::ios::binary };
@@ -240,4 +241,59 @@ int main() {
 		println(json.dump());
 		assert(json.dump(json::NO_INDENTATION) == R"({"hello":"world"})");
 	}
+	{
+		auto obj = json::parse(R"(
+			{
+				"key": 5,
+				"value": 6,
+				"next": 8,
+				"hi": 10
+			}
+		)");
+
+		using UMap = std::unordered_map<std::string, size_t>;
+		auto umap = UMap {
+			{ "key", 5 },
+			{ "value", 6 },
+			{ "next", 8 },
+			{ "hi", 10 },
+		};
+		assert(obj.template as<UMap>() == umap);
+
+		using Map = std::map<std::string, size_t>;
+		auto map = Map {
+			{ "key", 5 },
+			{ "value", 6 },
+			{ "next", 8 },
+			{ "hi", 10 },
+		};
+		assert(obj.template as<Map>() == map);
+
+		using VMap = std::map<std::string, json::Value>;
+		auto vmap = VMap {
+			{ "key", 5 },
+			{ "value", 6 },
+			{ "next", 8 },
+			{ "hi", 10 },
+		};
+		assert(obj.template as<VMap>() == vmap);
+	}
+	{
+		auto arr = json::parse(R"(
+			["hi", "mommy", ":3"]
+		)");
+
+		using Vec = std::vector<std::string>;
+		auto vec = Vec { "hi", "mommy", ":3" };
+		assert(arr.template as<Vec>() == vec);
+
+		using Set = std::set<std::string>;
+		auto set = Set { "hi", "mommy", ":3" };
+		assert(arr.template as<Set>() == set);
+
+		using USet = std::set<std::string>;
+		auto uset = USet { "hi", "mommy", ":3" };
+		assert(arr.template as<USet>() == uset);
+	}
+	println("All tests passed :3");
 }

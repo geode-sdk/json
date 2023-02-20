@@ -126,6 +126,8 @@ namespace json {
 				return as_object();
 			} else if constexpr (std::is_constructible_v<std::string, T>) {
 				return as_string();
+			} else if constexpr (std::is_same_v<T, Value>) {
+				return *this;
 			} else {
 				static_assert(!std::is_same_v<T, T>, "no conversion found from json::Value to T");
 			}
