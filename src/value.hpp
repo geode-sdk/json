@@ -123,7 +123,7 @@ const Value& Value::operator[](size_t index) const {
 
 void Value::set(std::string_view key, Value value) {
 	if (type() != Type::Object) throw std::runtime_error("not an object");
-	as_object().insert({std::string(key), value});
+	as_object()[key] = value;
 }
 
 bool Value::operator==(const Value& other) const {
