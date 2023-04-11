@@ -69,7 +69,9 @@ std::string parse_string(std::string_view& source) {
 	std::string str;
 	while (peek(source) != '"') {
 		char c = take_one(source);
-		if (c < 0x20) throw std::runtime_error("invalid string");
+		// char is signed, so utf8 high bit bytes will be interpreted as negative,
+		// could switch to unsigned char however just checking for c < 0 is easier
+		if (c >= 0 && c < 0x20) throw std::runtime_error("invalid string");
 		// FIXME: standard should also ignore > 0x10FFFF, however that would require decoding utf-8
 		if (c == '\\') {
 			switch (take_one(source)) {

@@ -295,5 +295,10 @@ int main() {
 		auto uset = USet { "hi", "mommy", ":3" };
 		assert(arr.template as<USet>() == uset);
 	}
+	{
+		auto obj = json::parse("{\"hello\": \"Ol\xC3\xA1!\"}");
+		assert(obj["hello"].as_string() == "Ol\xC3\xA1!");
+		std::cout << obj["hello"].as_string() << std::endl;
+	}
 	println("All tests passed :3");
 }
