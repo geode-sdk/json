@@ -65,7 +65,12 @@ Value Value::from_str(std::string_view source) {
 
 bool Value::contains(std::string_view key) const {
 	if (!is_object()) return false;
-	return as_object().count(key) == 1;
+	return as_object().contains(key);
+}
+
+size_t Value::count(std::string_view key) const {
+	if (!is_object()) return false;
+	return as_object().count(key);
 }
 
 std::optional<std::reference_wrapper<Value>> Value::try_get(std::string_view key) {

@@ -105,6 +105,7 @@ namespace json {
 		bool is_object() const { return type() == Type::Object; }
 
 		bool contains(std::string_view key) const;
+		size_t count(std::string_view key) const;
 
 		// Use json::NO_INDENTATION for a compact json, json::TAB_INDENTATION for tabs,
 		// otherwise specifies the amount of spaces
@@ -207,6 +208,7 @@ namespace json {
 
 		std::pair<iterator, bool> insert(const value_type& value);
 		size_t count(std::string_view key) const;
+		bool contains(std::string_view key) const;
 
 		bool operator==(const Object& other) const;
 	};
@@ -214,4 +216,49 @@ namespace json {
 	inline Value parse(std::string_view source) {
 		return Value::from_str(source);
 	}
+
+	// from boost::hash_combine
+	namespace detail {
+		inline std::size_t hash_combine(std::size_t seed, std::size_t h) noexcept {
+			seed ^= h + 0x9e3779b9 + (seed << 6U) + (seed >> 2U);
+			return seed;
+		}
+	}
 }
+
+template <>
+struct std::hash<json::Value> {
+	std::size_t operator()(json::Value const& value) const {
+		if (value.is_null()) {
+			return 0;
+		}
+		if (value.is_bool()) {
+			return value.as_bool();
+		}
+		if (value.is_number()) {
+			return std::hash<double>()(value.as_double());
+		}
+		if (value.is_string()) {
+			return std::hash<std::string>()(value.as_string());
+		}
+		auto ty = static_cast<size_t>(value.type());
+		if (value.is_array()) {
+			auto arr = value.as_array();
+			auto seed = json::detail::hash_combine(ty, arr.size());
+			for (auto const& item : arr) {
+				seed = json::detail::hash_combine(seed, hash<json::Value>()(item));
+			}
+			return seed;
+		}
+		if (value.is_object()) {
+			auto obj = value.as_object();
+			auto seed = json::detail::hash_combine(ty, obj.size());
+			for (auto& [key, item] : obj) {
+				seed = json::detail::hash_combine(seed, std::hash<std::string>()(key));
+				seed = json::detail::hash_combine(seed, std::hash<json::Value>()(item));
+			}
+			return seed;
+		}
+		return 0;
+	}
+};

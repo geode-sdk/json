@@ -45,6 +45,10 @@ std::pair<Object::iterator, bool> Object::insert(const Object::value_type& value
 	}
 }
 
+bool Object::contains(std::string_view key) const {
+	return this->count(key);
+}
+
 size_t Object::count(std::string_view key) const {
 	return this->find(key) == this->end() ? 0 : 1;
 }
