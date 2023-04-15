@@ -278,3 +278,46 @@ std::string Value::dump(int indentation_size) const {
 	dump_impl(*this, result, indentation_size, 0);
 	return result;
 }
+
+// from boost::hash_combine
+static std::size_t hash_combine(std::size_t seed, std::size_t h) noexcept {
+	seed ^= h + 0x9e3779b9 + (seed << 6U) + (seed >> 2U);
+	return seed;
+}
+
+std::size_t std::hash<json::Value>::operator()(json::Value const& value) const {
+	if (value.is_null()) {
+		return std::size_t(-1);
+	}
+	if (value.is_bool()) {
+		return value.as_bool();
+	}
+	if (value.is_number()) {
+		return std::hash<double>()(value.as_double());
+	}
+	if (value.is_string()) {
+		return std::hash<std::string>()(value.as_string());
+	}
+
+	auto const type_index = static_cast<size_t>(value.type());
+	if (value.is_array()) {
+		auto const& arr = value.as_array();
+		auto seed = hash_combine(type_index, arr.size());
+		for (auto const& item : arr) {
+			seed = hash_combine(seed, hash<json::Value>()(item));
+		}
+		return seed;
+	}
+
+	if (value.is_object()) {
+		auto const& obj = value.as_object();
+		auto seed = hash_combine(type_index, obj.size());
+		for (auto& [key, item] : obj) {
+			seed = hash_combine(seed, std::hash<std::string>()(key));
+			seed = hash_combine(seed, std::hash<json::Value>()(item));
+		}
+		return seed;
+	}
+
+	return 0;
+}
