@@ -20,6 +20,14 @@ bool Object::operator==(const Object& other) const {
 	return true;
 }
 
+bool Object::operator<(const Object& other) const {
+	return m_data < other.m_data;
+}
+
+bool Object::operator>(const Object& other) const {
+	return m_data > other.m_data;
+}
+
 Object::iterator Object::find(std::string_view key) {
 	auto end = this->end();
 	for (auto it = this->begin(); it != end; ++it) {

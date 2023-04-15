@@ -144,6 +144,38 @@ bool Value::operator==(const Value& other) const {
 	}
 }
 
+bool Value::operator<(const Value& other) const {
+	if (type() < other.type()) {
+		return true;
+	}
+	if (type() != other.type()) return false;
+	switch (type()) {
+		case Type::Null: return true;
+		case Type::Bool: return as_bool() < other.as_bool();
+		case Type::String: return as_string() < other.as_string();
+		case Type::Number: return as_double() < other.as_double();
+		case Type::Array: return as_array() < other.as_array();
+		case Type::Object: return as_object() < other.as_object();
+		default: return false;
+	}
+}
+
+bool Value::operator>(const Value& other) const {
+	if (type() > other.type()) {
+		return true;
+	}
+	if (type() != other.type()) return false;
+	switch (type()) {
+		case Type::Null: return false;
+		case Type::Bool: return as_bool() > other.as_bool();
+		case Type::String: return as_string() > other.as_string();
+		case Type::Number: return as_double() > other.as_double();
+		case Type::Array: return as_array() > other.as_array();
+		case Type::Object: return as_object() > other.as_object();
+		default: return false;
+	}
+}
+
 void dump_impl_string(const std::string& str, std::string& result) {
 	result.push_back('"');
 	for (auto c : str) {

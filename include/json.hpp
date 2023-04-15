@@ -96,6 +96,8 @@ namespace json {
 		Array& as_array();
 
 		bool operator==(const Value&) const;
+		bool operator<(const Value&) const;
+		bool operator>(const Value&) const;
 
 		bool is_null() const { return type() == Type::Null; }
 		bool is_string() const { return type() == Type::String; }
@@ -211,6 +213,8 @@ namespace json {
 		bool contains(std::string_view key) const;
 
 		bool operator==(const Object& other) const;
+		bool operator<(const Object&) const;
+		bool operator>(const Object&) const;
 	};
 
 	inline Value parse(std::string_view source) {
