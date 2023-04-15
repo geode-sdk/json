@@ -20,6 +20,14 @@ bool Object::operator==(const Object& other) const {
 	return true;
 }
 
+bool Object::operator<(const Object& other) const {
+	return m_data < other.m_data;
+}
+
+bool Object::operator>(const Object& other) const {
+	return m_data > other.m_data;
+}
+
 Object::iterator Object::find(std::string_view key) {
 	auto end = this->end();
 	for (auto it = this->begin(); it != end; ++it) {
@@ -43,6 +51,10 @@ std::pair<Object::iterator, bool> Object::insert(const Object::value_type& value
 		m_data.push_back(value);
 		return {--m_data.end(), true};
 	}
+}
+
+bool Object::contains(std::string_view key) const {
+	return this->count(key);
 }
 
 size_t Object::count(std::string_view key) const {

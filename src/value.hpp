@@ -65,7 +65,12 @@ Value Value::from_str(std::string_view source) {
 
 bool Value::contains(std::string_view key) const {
 	if (!is_object()) return false;
-	return as_object().count(key) == 1;
+	return as_object().contains(key);
+}
+
+size_t Value::count(std::string_view key) const {
+	if (!is_object()) return false;
+	return as_object().count(key);
 }
 
 std::optional<std::reference_wrapper<Value>> Value::try_get(std::string_view key) {
@@ -135,6 +140,38 @@ bool Value::operator==(const Value& other) const {
 		case Type::Number: return as_double() == other.as_double();
 		case Type::Array: return as_array() == other.as_array();
 		case Type::Object: return as_object() == other.as_object();
+		default: return false;
+	}
+}
+
+bool Value::operator<(const Value& other) const {
+	if (type() < other.type()) {
+		return true;
+	}
+	if (type() != other.type()) return false;
+	switch (type()) {
+		case Type::Null: return true;
+		case Type::Bool: return as_bool() < other.as_bool();
+		case Type::String: return as_string() < other.as_string();
+		case Type::Number: return as_double() < other.as_double();
+		case Type::Array: return as_array() < other.as_array();
+		case Type::Object: return as_object() < other.as_object();
+		default: return false;
+	}
+}
+
+bool Value::operator>(const Value& other) const {
+	if (type() > other.type()) {
+		return true;
+	}
+	if (type() != other.type()) return false;
+	switch (type()) {
+		case Type::Null: return false;
+		case Type::Bool: return as_bool() > other.as_bool();
+		case Type::String: return as_string() > other.as_string();
+		case Type::Number: return as_double() > other.as_double();
+		case Type::Array: return as_array() > other.as_array();
+		case Type::Object: return as_object() > other.as_object();
 		default: return false;
 	}
 }

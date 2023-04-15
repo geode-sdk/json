@@ -298,7 +298,27 @@ int main() {
 	{
 		auto obj = json::parse("{\"hello\": \"Ol\xC3\xA1!\"}");
 		assert(obj["hello"].as_string() == "Ol\xC3\xA1!");
-		std::cout << obj["hello"].as_string() << std::endl;
+		println(obj["hello"].as_string());
+	}
+	{
+		auto val1 = json::parse(R"("value")");
+		auto val2 = json::parse(R"({ "key": 4 })");
+		auto val3 = json::Object {
+			{ "key", 4 },
+		};
+		auto val4 = json::Object {
+			{ "key", 6 },
+		};
+		std::unordered_set<json::Value> values { val1, val2, val3, val4 };
+		std::unordered_set<json::Value> against { val1, val2, val4 };
+		std::set<json::Value> setValues { val1, val2, val3, val4 };
+		std::set<json::Value> setAgainst { val1, val2, val4 };
+		assert(values.size() == against.size());
+		assert(values == against);
+		assert(setValues.size() == setAgainst.size());
+		assert(setValues == setAgainst);
+		println(json::Value(values).dump());
+		println(json::Value(setValues).dump());
 	}
 	println("All tests passed :3");
 }

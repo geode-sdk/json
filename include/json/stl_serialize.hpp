@@ -11,6 +11,31 @@ namespace json {
 	// allow converting parsing JSON directly to STL containers for convenience
 
 	template <class T>
+	struct Serialize<std::optional<T>> {
+		static std::optional<T> from_json(Value const& value)
+			requires requires(Value const& value) {
+				value.template as<T>();
+			}
+		{
+			if (!value.is_null()) {
+				return value.template as<T>();
+			}
+			return std::nullopt;
+		}
+
+		static Value to_json(std::optional<T> const& value)
+			requires requires(T const& value) {
+				Value(value);
+			}
+		{
+			if (value.has_value()) {
+				return Value(value.value());
+			}
+			return Value(nullptr);
+		}
+	};
+
+	template <class T>
 	struct Serialize<std::vector<T>> {
 		static std::vector<T> from_json(Value const& value)
 			requires requires(Value const& value) {
