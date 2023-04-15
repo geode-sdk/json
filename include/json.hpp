@@ -165,14 +165,12 @@ namespace json {
 
 		template <class T, class Key>
 		decltype(auto) get(Key&& key_or_index) const {
-			const auto value = this->operator[](std::forward<Key>(key_or_index));
-			return value.template as<T>();
+			return this->operator[](std::forward<Key>(key_or_index)).template as<T>();
 		}
 
 		template <class T, class Key>
 		decltype(auto) get(Key&& key_or_index) {
-			const auto value = this->operator[](std::forward<Key>(key_or_index));
-			return value.template as<T>();
+			return this->operator[](std::forward<Key>(key_or_index)).template as<T>();
 		}
 	};
 
