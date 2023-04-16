@@ -1,8 +1,9 @@
 #include <json.hpp>
 #include <stdexcept>
+#include <version>
 
 // macos does not seem to support charconv.. so do this as a workaround
-#ifndef __APPLE__
+#ifdef __cpp_lib_to_chars
 #include <charconv>
 #include <array>
 #else

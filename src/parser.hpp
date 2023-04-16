@@ -149,7 +149,7 @@ ValuePtr parse_number(std::string_view& source) {
 		}
 		take_digits();
 	}
-	#ifdef __APPLE__
+	#ifndef __cpp_lib_to_chars
 		const std::string str(start.substr(0, size));
 		// FIXME: std::stod is locale specific, might break on some machines
 		return std::make_unique<ValueImpl>(Type::Number, std::stod(str));

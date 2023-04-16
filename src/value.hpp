@@ -206,7 +206,7 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 		} break;
 		case Type::Number: {
 			auto number = value.as_double();
-			#ifdef __APPLE__
+			#ifndef __cpp_lib_to_chars
 				std::stringstream stream;
 				stream.imbue(std::locale("C"));
 				stream << number;
