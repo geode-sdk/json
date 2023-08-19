@@ -151,7 +151,7 @@ value.dump(json::TAB_INDENTATION); // will indent with tabs
 
 ## misc
 ```cpp
-// default constructs to a json::Object, for convenience
+// default constructs to a json object, for convenience
 json::Value value;
 
 // null is nullptr
