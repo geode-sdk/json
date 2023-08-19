@@ -6,54 +6,13 @@
 #include <cassert>
 #include <json/stl_serialize.hpp>
 
-std::string read_file(std::string filepath) {
-	std::ifstream is { filepath, std::ios::binary };
-	std::stringstream ss;
-	ss << is.rdbuf();
-	is.close();
-	return std::move(ss).str();
-}
-
 template <class S>
 void println(S str) {
 	std::cout << str << std::endl;
 }
 
 void debug(const json::Value& value) {
-	switch (value.type()) {
-		case json::Type::String: {
-			std::cout << '"' << value.as_string() << '"';
-		} break;
-		case json::Type::Number: {
-			std::cout << value.as_double();
-		} break;
-		case json::Type::Bool: {
-			std::cout << std::boolalpha << value.as_bool();
-		} break;
-		case json::Type::Null: {
-			std::cout << "null";
-		} break;
-		case json::Type::Object: {
-			std::cout << '{';
-			const auto& obj = value.as_object();
-			for (const auto& [key, value] : obj) {
-				std::cout << '"' << key << "\": ";
-				debug(value);
-				std::cout << ", ";
-			}
-			std::cout << '}';
-		} break;
-		case json::Type::Array: {
-			std::cout << '[';
-			const auto& obj = value.as_array();
-			for (const auto& value : obj) {
-				debug(value);
-				std::cout << ", ";
-			}
-			std::cout << ']';
-		} break;
-		default: break;
-	}
+	println(value.dump());
 }
 
 struct CoolStruct {
@@ -94,11 +53,11 @@ int main() {
 		{"hello", 69}
 	};
 
-	debug(foo); std::cout << std::endl;
+	debug(foo);
 
 	foo["world"] = 31;
 
-	debug(foo); std::cout << std::endl;
+	debug(foo);
 
 	json::Value bar;
 
@@ -106,8 +65,8 @@ int main() {
 
 	bar["hello"] = 10;
 
-	debug(foo); std::cout << std::endl;
-	debug(bar); std::cout << std::endl;
+	debug(foo);
+	debug(bar);
 
 	{
 		json::Value obj1 = json::Object {};
@@ -119,8 +78,8 @@ int main() {
 		obj2["world"] = 20;
 		obj2["hello"] = 10;
 
-		debug(obj1); std::cout << std::endl;
-		debug(obj2); std::cout << std::endl;
+		debug(obj1);
+		debug(obj2);
 
 		std::cout << std::boolalpha << "equal? " << (obj1 == obj2) << std::endl;
 	}
@@ -129,7 +88,7 @@ int main() {
 		json::Value obj(
 			{ { "hello", "world!"}, {"sux", 123} }
 		);
-		debug(obj); std::cout << std::endl;
+		debug(obj);
 	}
 
 	{
@@ -185,7 +144,7 @@ int main() {
     }
 }
 		)");
-		debug(obj); endl(std::cout);
+		debug(obj);
 		println(obj["resources"]["spritesheets"]["APISheet"][0].as_string());
 		println(obj["resources"]["fonts"]["mdFont"]["size"].as_double());
 	}
@@ -197,7 +156,7 @@ int main() {
 		};
 		json::Value obj = json::Object {};
 		obj["cool"] = cool;
-		debug(obj); endl(std::cout);
+		debug(obj);
 
 		auto another = obj.get<CoolStruct>("cool");
 		std::cout << another.name << std::endl;
@@ -207,7 +166,7 @@ int main() {
 		Hooray value = Hooray::Hooray;
 		json::Object obj;
 		obj["hooray"] = value;
-		debug(obj); endl(std::cout);
+		debug(obj);
 	}
 
 	{
