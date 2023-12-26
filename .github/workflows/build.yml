@@ -13,11 +13,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - run: sudo apt install ninja
+
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build
+      run: cmake -B ${{github.workspace}}/build -G Ninja
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build
+      run: cmake --build ${{github.workspace}}/build --parallel
 
     - name: Test
       working-directory: ${{github.workspace}}/build/test
