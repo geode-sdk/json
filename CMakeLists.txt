@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 0.2.0)
+project(mat-json VERSION 2.0.0)
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
@@ -18,6 +18,5 @@ else()
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)
-    add_executable(test test.cpp)
-    target_link_libraries(test mat-json)
+    add_subdirectory(test)
 endif()
