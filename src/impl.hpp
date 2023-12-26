@@ -1,6 +1,6 @@
 #include <variant>
 
-class json::ValueImpl {
+class matjson::ValueImpl {
 	Type m_type;
 	std::variant<std::monostate, std::string, double, bool, Array, Object> m_value;
 public:

@@ -228,7 +228,7 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 			for (const auto& value : arr) {
 				if (!first) {
 					result.push_back(',');
-					if (indentation != json::NO_INDENTATION)
+					if (indentation != matjson::NO_INDENTATION)
 						result.push_back(' ');
 				}
 				first = false;
@@ -239,10 +239,10 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 		case Type::Object: {
 			result.push_back('{');
 			const auto add_line = [&](int depth) {
-				if (indentation != json::NO_INDENTATION) {
+				if (indentation != matjson::NO_INDENTATION) {
 					result.push_back('\n');
-					const char iden = indentation == json::TAB_INDENTATION ? '\t' : ' ';
-					const size_t size = indentation == json::TAB_INDENTATION ? depth : depth * indentation;
+					const char iden = indentation == matjson::TAB_INDENTATION ? '\t' : ' ';
+					const size_t size = indentation == matjson::TAB_INDENTATION ? depth : depth * indentation;
 					result.reserve(result.size() + size);
 					for (size_t i = 0; i < size; ++i) {
 						result.push_back(iden);
@@ -262,7 +262,7 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 				dump_impl_string(key, result);
 				
 				result.push_back(':');
-				if (indentation != json::NO_INDENTATION)
+				if (indentation != matjson::NO_INDENTATION)
 					result.push_back(' ');
 
 				dump_impl(value, result, indentation, depth + 1);
@@ -285,7 +285,7 @@ static std::size_t hash_combine(std::size_t seed, std::size_t h) noexcept {
 	return seed;
 }
 
-std::size_t std::hash<json::Value>::operator()(json::Value const& value) const {
+std::size_t std::hash<matjson::Value>::operator()(matjson::Value const& value) const {
 	if (value.is_null()) {
 		return std::size_t(-1);
 	}
@@ -304,7 +304,7 @@ std::size_t std::hash<json::Value>::operator()(json::Value const& value) const {
 		auto const& arr = value.as_array();
 		auto seed = hash_combine(type_index, arr.size());
 		for (auto const& item : arr) {
-			seed = hash_combine(seed, hash<json::Value>()(item));
+			seed = hash_combine(seed, hash<matjson::Value>()(item));
 		}
 		return seed;
 	}
@@ -314,7 +314,7 @@ std::size_t std::hash<json::Value>::operator()(json::Value const& value) const {
 		auto seed = hash_combine(type_index, obj.size());
 		for (auto& [key, item] : obj) {
 			seed = hash_combine(seed, std::hash<std::string>()(key));
-			seed = hash_combine(seed, std::hash<json::Value>()(item));
+			seed = hash_combine(seed, std::hash<matjson::Value>()(item));
 		}
 		return seed;
 	}

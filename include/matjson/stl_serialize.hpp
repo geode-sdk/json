@@ -1,13 +1,13 @@
 #pragma once
 
-#include "../json.hpp"
+#include "../matjson.hpp"
 #include <set>
 #include <unordered_set>
 #include <map>
 #include <unordered_map>
 #include <algorithm>
 
-namespace json {
+namespace matjson {
 	// allow converting parsing JSON directly to STL containers for convenience
 
 	template <class T>

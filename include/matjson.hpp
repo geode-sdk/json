@@ -25,7 +25,7 @@
 	#define MAT_JSON_DLL
 #endif
 
-namespace json {
+namespace matjson {
 	enum class Type {
 		Object,
 		Array,
@@ -46,9 +46,9 @@ namespace json {
 	using JsonException = std::runtime_error;
 
 	// Specialize this class and implement the following methods (not all required)
-	// static T from_json(const json::Value&);
-	// static json::Value to_json(const T&);
-	// static bool is_json(const json::Value&);
+	// static T from_json(const matjson::Value&);
+	// static matjson::Value to_json(const T&);
+	// static bool is_json(const matjson::Value&);
 	template <class T>
 	struct Serialize;
 
@@ -127,7 +127,7 @@ namespace json {
 		bool contains(std::string_view key) const;
 		size_t count(std::string_view key) const;
 
-		// Use json::NO_INDENTATION for a compact json, json::TAB_INDENTATION for tabs,
+		// Use matjson::NO_INDENTATION for a compact json, matjson::TAB_INDENTATION for tabs,
 		// otherwise specifies the amount of spaces
 		std::string dump(int indentation_size = 4) const;
 
@@ -150,7 +150,7 @@ namespace json {
 			} else if constexpr (std::is_same_v<T, Value>) {
 				return *this;
 			} else {
-				static_assert(!std::is_same_v<T, T>, "no conversion found from json::Value to T");
+				static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
 			}
 		}
 
@@ -239,6 +239,6 @@ namespace json {
 }
 
 template <>
-struct std::hash<json::Value> {
-	MAT_JSON_DLL std::size_t operator()(json::Value const& value) const;
+struct std::hash<matjson::Value> {
+	MAT_JSON_DLL std::size_t operator()(matjson::Value const& value) const;
 };
