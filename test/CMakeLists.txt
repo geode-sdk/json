@@ -7,7 +7,12 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(Catch2)
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
 set(CMAKE_CXX_STANDARD 20)
 add_executable(tests test.cpp)
 target_link_libraries(tests PRIVATE mat-json Catch2::Catch2WithMain)
+
+include(CTest)
+include(Catch)
+catch_discover_tests(tests)
