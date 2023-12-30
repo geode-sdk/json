@@ -8,8 +8,7 @@ if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
     target_include_directories(mat-json INTERFACE include)
 
     add_library(mat-json-impl INTERFACE)
-
-    target_link_libraries(mat-json-impl mat-json)
+    target_link_libraries(mat-json-impl INTERFACE mat-json)
     target_sources(mat-json-impl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/json.cpp)
 else()
     add_library(mat-json src/json.cpp)
