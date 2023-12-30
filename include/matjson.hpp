@@ -42,6 +42,7 @@ namespace matjson {
 	using Array = std::vector<Value>;
 
 	class Object;
+	class ObjectImpl;
 
 	using JsonException = std::runtime_error;
 
@@ -99,6 +100,7 @@ namespace matjson {
 		const Value& operator[](size_t index) const;
 
 		void set(std::string_view key, Value value);
+		void erase(std::string_view key);
 
 		Type type() const;
 
@@ -193,22 +195,21 @@ namespace matjson {
 	};
 
 	class MAT_JSON_DLL Object final {
+		friend ObjectImpl;
 		using value_type = std::pair<std::string, Value>;
+		// TODO: maybe dont use std::vector's iterator
 		using iterator = typename std::vector<value_type>::iterator;
 		using const_iterator = typename std::vector<value_type>::const_iterator;
-		std::vector<value_type> m_data;
+		std::unique_ptr<ObjectImpl> m_impl;
 	public:
-		Object() = default;
+		Object();
 		Object(const Object&);
 		Object(Object&&);
-
-		template <class It>
-		Object(It first, It last) : m_data(first, last) {}
-
 		Object(std::initializer_list<value_type> init);
+		~Object();
 
-		size_t size() const { return m_data.size(); }
-		bool empty() const { return m_data.empty(); }
+		size_t size() const;
+		bool empty() const;
 
 		Value& operator[](std::string_view key);
 
@@ -225,6 +226,10 @@ namespace matjson {
 		const_iterator find(std::string_view key) const;
 
 		std::pair<iterator, bool> insert(const value_type& value);
+		iterator erase(const_iterator it);
+		size_t erase(std::string_view key);
+		void clear();
+
 		size_t count(std::string_view key) const;
 		bool contains(std::string_view key) const;
 

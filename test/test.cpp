@@ -4,6 +4,7 @@
 #include <matjson/stl_serialize.hpp>
 #include <map>
 #include <unordered_map>
+#include <array>
 
 struct CoolStruct {
 	std::string name;
@@ -99,8 +100,11 @@ TEST_CASE("Keep insertion order") {
         }
     );
 
+    obj["crazy"] = true;
+    obj.set("awesome", "maybe");
+
     int i = 0;
-    std::array values = {"zzz", "aaa", "cool"};
+    std::array values = {"zzz", "aaa", "cool", "crazy", "awesome"};
     for (auto [key, _] : obj.as_object()) {
         REQUIRE(key == values[i]);
         ++i;
@@ -141,7 +145,7 @@ TEST_CASE("Dump/parse round trip") {
     REQUIRE(obj == matjson::parse(obj.dump(69)));
 }
 
-TEST_CASE("Test custom Object class") {
+TEST_CASE("STL serialization") {
     auto obj = matjson::parse(R"(
         {
             "key": 5,
@@ -179,7 +183,23 @@ TEST_CASE("Test custom Object class") {
     REQUIRE(obj.as<VMap>() == vmap);
 }
 
-TEST_CASE("Test UTF-8 strings") {
+TEST_CASE("UTF-8 strings") {
     auto obj = matjson::parse("{\"hello\": \"Ol\xC3\xA1!\"}");
     REQUIRE(obj["hello"].as_string() == "Ol\xC3\xA1!");
+}
+
+TEST_CASE("Mutate object") {
+    matjson::Value obj;
+
+    obj.set("hello", 123);
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123}");
+
+    obj["hello!"] = 1234;
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123,\"hello!\":1234}");
+
+    obj.set("hello!", 4);
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123,\"hello!\":4}");
+    
+    obj.erase("hello!");
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123}");
 }

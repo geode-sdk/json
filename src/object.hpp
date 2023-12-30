@@ -1,13 +1,22 @@
-Object::Object(const Object& object) : m_data(object.m_data) {}
-Object::Object(Object&& object) : m_data(std::move(object.m_data)) {}
-Object::Object(std::initializer_list<value_type> init) : m_data(init) {}
+class matjson::ObjectImpl {
+public:
+	std::vector<Object::value_type> data;
+};
 
-Object::iterator Object::begin() { return m_data.begin(); }
-Object::iterator Object::end() { return m_data.end(); }
-Object::const_iterator Object::begin() const { return m_data.begin(); }
-Object::const_iterator Object::end() const { return m_data.end(); }
-Object::const_iterator Object::cbegin() const { return m_data.cbegin(); }
-Object::const_iterator Object::cend() const { return m_data.cend(); }
+using matjson::ObjectImpl;
+
+Object::Object() : m_impl(std::make_unique<ObjectImpl>()) {}
+Object::Object(const Object& object) : m_impl(std::make_unique<ObjectImpl>(*object.m_impl.get())) {}
+Object::Object(Object&& object) : m_impl(std::move(object.m_impl)) {}
+Object::Object(std::initializer_list<value_type> init) : m_impl(std::make_unique<ObjectImpl>(init)) {}
+Object::~Object() {}
+
+Object::iterator Object::begin() { return m_impl->data.begin(); }
+Object::iterator Object::end() { return m_impl->data.end(); }
+Object::const_iterator Object::begin() const { return m_impl->data.begin(); }
+Object::const_iterator Object::end() const { return m_impl->data.end(); }
+Object::const_iterator Object::cbegin() const { return m_impl->data.cbegin(); }
+Object::const_iterator Object::cend() const { return m_impl->data.cend(); }
 
 bool Object::operator==(const Object& other) const {
 	for (const auto& [key, value] : *this) {
@@ -21,11 +30,11 @@ bool Object::operator==(const Object& other) const {
 }
 
 bool Object::operator<(const Object& other) const {
-	return m_data < other.m_data;
+	return m_impl->data < other.m_impl->data;
 }
 
 bool Object::operator>(const Object& other) const {
-	return m_data > other.m_data;
+	return m_impl->data > other.m_impl->data;
 }
 
 Object::iterator Object::find(std::string_view key) {
@@ -48,9 +57,30 @@ std::pair<Object::iterator, bool> Object::insert(const Object::value_type& value
 	if (auto it = this->find(value.first); it != this->end()) {
 		return {it, false};
 	} else {
-		m_data.push_back(value);
-		return {--m_data.end(), true};
+		m_impl->data.push_back(value);
+		return {--m_impl->data.end(), true};
 	}
+}
+
+size_t Object::erase(std::string_view key) {
+	if (auto it = this->find(key); it != this->end()) {
+		m_impl->data.erase(it);
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+Object::iterator Object::erase(const_iterator it) {
+	return m_impl->data.erase(it);
+}
+
+size_t Object::size() const {
+	return m_impl->data.size();
+}
+
+bool Object::empty() const {
+	return m_impl->data.empty();
 }
 
 bool Object::contains(std::string_view key) const {
@@ -65,7 +95,7 @@ Value& Object::operator[](std::string_view key) {
 	if (auto it = this->find(key); it != this->end()) {
 		return it->second;
 	} else {
-		m_data.push_back({std::string(key), Value{}});
-		return m_data.back().second;
+		m_impl->data.push_back({std::string(key), Value{}});
+		return m_impl->data.back().second;
 	}
 }

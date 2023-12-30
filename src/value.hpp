@@ -131,6 +131,11 @@ void Value::set(std::string_view key, Value value) {
 	as_object()[key] = value;
 }
 
+void Value::erase(std::string_view key) {
+	if (type() != Type::Object) throw std::runtime_error("not an object");
+	as_object().erase(key);
+}
+
 bool Value::operator==(const Value& other) const {
 	if (type() != other.type()) return false;
 	switch (type()) {
