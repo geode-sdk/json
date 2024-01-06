@@ -8,7 +8,7 @@ using matjson::ObjectImpl;
 Object::Object() : m_impl(std::make_unique<ObjectImpl>()) {}
 Object::Object(const Object& object) : m_impl(std::make_unique<ObjectImpl>(*object.m_impl.get())) {}
 Object::Object(Object&& object) : m_impl(std::move(object.m_impl)) {}
-Object::Object(std::initializer_list<value_type> init) : m_impl(std::make_unique<ObjectImpl>(init)) {}
+Object::Object(std::initializer_list<value_type> init) : m_impl(std::make_unique<ObjectImpl>(ObjectImpl{init})) {}
 Object::~Object() {}
 
 Object::iterator Object::begin() { return m_impl->data.begin(); }
