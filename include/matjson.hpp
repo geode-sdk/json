@@ -198,7 +198,7 @@ namespace matjson {
 		}
 
 		template <class T, class Key>
-		decltype(auto) try_get(Key&& key_or_index) const {
+		std::optional<T> try_get(Key&& key_or_index) const {
 			auto value = try_get(std::forward<Key>(key_or_index));
 			if (value && value->get().template is<T>()) {
 				return std::optional<T>(value->get().template as<T>());
@@ -207,7 +207,7 @@ namespace matjson {
 		}
 
 		template <class T, class Key>
-		decltype(auto) try_get(Key&& key_or_index) {
+		std::optional<T> try_get(Key&& key_or_index) {
 			auto value = try_get(std::forward<Key>(key_or_index));
 			if (value && value->get().template is<T>()) {
 				return std::optional<T>(value->get().template as<T>());
