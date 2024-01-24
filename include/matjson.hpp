@@ -196,6 +196,24 @@ namespace matjson {
 		decltype(auto) get(Key&& key_or_index) {
 			return this->operator[](std::forward<Key>(key_or_index)).template as<T>();
 		}
+
+		template <class T, class Key>
+		decltype(auto) try_get(Key&& key_or_index) const {
+			auto value = try_get(std::forward<Key>(key_or_index));
+			if (value && value->get().template is<T>()) {
+				return std::optional<T>(value->get().template as<T>());
+			}
+			return std::nullopt;
+		}
+
+		template <class T, class Key>
+		decltype(auto) try_get(Key&& key_or_index) {
+			auto value = try_get(std::forward<Key>(key_or_index));
+			if (value && value->get().template is<T>()) {
+				return std::optional<T>(value->get().template as<T>());
+			}
+			return std::nullopt;
+		}
 	};
 
 	class MAT_JSON_DLL Object final {
