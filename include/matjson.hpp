@@ -88,6 +88,7 @@ namespace matjson {
 		Value(T*) = delete;
 
 		static Value from_str(std::string_view source);
+		static std::optional<Value> from_str(std::string_view source, std::string& error) noexcept;
 
 		std::optional<std::reference_wrapper<Value>> try_get(std::string_view key);
 		std::optional<std::reference_wrapper<const Value>> try_get(std::string_view key) const;
@@ -101,6 +102,9 @@ namespace matjson {
 
 		void set(std::string_view key, Value value);
 		void erase(std::string_view key);
+
+		bool try_set(std::string_view key, Value value) noexcept;
+		bool try_erase(std::string_view key) noexcept;
 
 		Type type() const;
 
@@ -240,6 +244,10 @@ namespace matjson {
 
 	inline Value parse(std::string_view source) {
 		return Value::from_str(source);
+	}
+
+	inline std::optional<Value> parse(std::string_view source, std::string& error) noexcept {
+		return Value::from_str(source, error);
 	}
 }
 
