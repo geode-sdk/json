@@ -11,6 +11,11 @@ Object::Object(Object&& object) : m_impl(std::move(object.m_impl)) {}
 Object::Object(std::initializer_list<value_type> init) : m_impl(std::make_unique<ObjectImpl>(ObjectImpl{init})) {}
 Object::~Object() {}
 
+Object& Object::operator=(Object other) {
+	m_impl.swap(other.m_impl);
+	return *this;
+}
+
 Object::iterator Object::begin() { return m_impl->data.begin(); }
 Object::iterator Object::end() { return m_impl->data.end(); }
 Object::const_iterator Object::begin() const { return m_impl->data.begin(); }
@@ -89,6 +94,10 @@ bool Object::contains(std::string_view key) const {
 
 size_t Object::count(std::string_view key) const {
 	return this->find(key) == this->end() ? 0 : 1;
+}
+
+void Object::clear() {
+	m_impl->data.clear();
 }
 
 Value& Object::operator[](std::string_view key) {

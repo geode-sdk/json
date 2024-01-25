@@ -230,6 +230,8 @@ namespace matjson {
 		Object(std::initializer_list<value_type> init);
 		~Object();
 
+		Object& operator=(Object);
+
 		size_t size() const;
 		bool empty() const;
 
