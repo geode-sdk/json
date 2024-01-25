@@ -60,7 +60,16 @@ const Array& Value::as_array() const { return m_impl->as_array(); }
 Array& Value::as_array() { return m_impl->as_array(); }
 
 Value Value::from_str(std::string_view source) {
-	return Value(parse_json(source));
+	std::string error;
+	auto object = parse_json(source, error);
+	if (!object) throw std::runtime_error(error);
+	return Value(std::move(object));
+}
+
+std::optional<Value> Value::from_str(std::string_view source, std::string& error) noexcept {
+	auto object = parse_json(source, error);
+	if (object) return Value(std::move(object));
+	return std::nullopt;
 }
 
 bool Value::contains(std::string_view key) const {
@@ -134,6 +143,19 @@ void Value::set(std::string_view key, Value value) {
 void Value::erase(std::string_view key) {
 	if (type() != Type::Object) throw std::runtime_error("not an object");
 	as_object().erase(key);
+}
+
+bool Value::try_set(std::string_view key, Value value) noexcept {
+	if (type() != Type::Object) return false;
+	as_object()[key] = value;
+	return true;
+
+}
+bool Value::try_erase(std::string_view key) noexcept {
+	if (type() != Type::Object) return false;
+	as_object().erase(key);
+	return true;
+
 }
 
 bool Value::operator==(const Value& other) const {
