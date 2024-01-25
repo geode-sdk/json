@@ -203,3 +203,48 @@ TEST_CASE("Mutate object") {
     obj.erase("hello!");
     REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123}");
 }
+
+TEST_CASE("Parse unit values") {
+    REQUIRE(matjson::parse("123").as_int() == 123);
+    REQUIRE(matjson::parse("-123").as_int() == -123);
+    REQUIRE(matjson::parse("123\n").as_int() == 123);
+    REQUIRE(matjson::parse("   123  ").as_int() == 123);
+    REQUIRE(matjson::parse("123  ").as_int() == 123);
+    REQUIRE(matjson::parse("   123").as_int() == 123);
+
+    REQUIRE(matjson::parse("0.0").as_double() == 0.0);
+    REQUIRE(matjson::parse("0.05").as_double() == 0.05);
+    REQUIRE(matjson::parse("123").as_double() == 123.0);
+    REQUIRE(matjson::parse("123.0").as_double() == 123.0);
+    REQUIRE(matjson::parse("123.123").as_double() == 123.123);
+    REQUIRE(matjson::parse("-123.123").as_double() == -123.123);
+
+    REQUIRE(matjson::parse("true").as_bool() == true);
+    REQUIRE(matjson::parse("  true").as_bool() == true);
+    REQUIRE(matjson::parse("true  ").as_bool() == true);
+    
+    REQUIRE(matjson::parse("false").as_bool() == false);
+    REQUIRE(matjson::parse("false   ").as_bool() == false);
+    REQUIRE(matjson::parse("   false").as_bool() == false);
+    
+    REQUIRE(matjson::parse("\"hello\"").as_string() == "hello");
+    REQUIRE(matjson::parse("\"hello\"   ").as_string() == "hello");
+    REQUIRE(matjson::parse("  \"hello\"").as_string() == "hello");
+
+    REQUIRE(matjson::parse("null").is_null());
+    REQUIRE(matjson::parse("[]").is_array());
+    REQUIRE(matjson::parse("{}").is_object());
+
+    REQUIRE_THROWS(matjson::parse(""));
+    REQUIRE_THROWS(matjson::parse("  "));
+    REQUIRE_THROWS(matjson::parse("invalid"));
+}
+
+TEST_CASE("Invalid json") {
+    REQUIRE_THROWS(matjson::parse("{"));
+    REQUIRE_THROWS(matjson::parse("}"));
+    REQUIRE_THROWS(matjson::parse("[10, 10,]"));
+    REQUIRE_THROWS(matjson::parse("{\"hello\"}"));
+    REQUIRE_THROWS(matjson::parse("{123: 123}"));
+    REQUIRE_THROWS(matjson::parse("[null, 10, \"]"));
+}

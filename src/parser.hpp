@@ -2,15 +2,15 @@
 #define CONCAT(left, right) CONCAT_(left, right)
 
 #define UNWRAP(...)                                       \
-    (__VA_ARGS__);                                        \
-	if (error.size() > 0) {                               \
+	(__VA_ARGS__);                                        \
+	if (!error.empty()) {                                 \
 		return {};                                        \
 	}
 
 
 #define VALUE_UNWRAP(into, ...)                           \
-    auto CONCAT(optional_res_, __LINE__) = (__VA_ARGS__); \
-	if (error.size() > 0) {                               \
+	auto CONCAT(optional_res_, __LINE__) = (__VA_ARGS__); \
+	if (!error.empty()) {                                 \
 		return {};                                        \
 	}                                                     \
 	into = std::move(CONCAT(optional_res_, __LINE__));
@@ -41,7 +41,7 @@ bool is_ws(char c) {
 void skip_ws(std::string_view& string, std::string& error) noexcept {
 	while (!string.empty() && is_ws(peek(string, error)) && error.empty()) {
 		take_one(string, error);
-		if (error.size() > 0) return;
+		if (!error.empty()) return;
 	}
 }
 
@@ -128,7 +128,7 @@ std::string parse_string(std::string_view& source, std::string& error) noexcept 
 				case 'u': {
 					const auto take_hex = [&] {
 						char c = take_one(source, error);
-						if (error.size() > 0) return 0u;
+						if (!error.empty()) return 0u;
 						if (c >= '0' && c <= '9') return static_cast<uint32_t>(c - '0');
 						else if (c >= 'a' && c <= 'f') return static_cast<uint32_t>(c - 'a' + 10);
 						else if (c >= 'A' && c <= 'F') return static_cast<uint32_t>(c - 'A' + 10);
@@ -140,7 +140,7 @@ std::string parse_string(std::string_view& source, std::string& error) noexcept 
 					value |= take_hex() << 8;
 					value |= take_hex() << 4;
 					value |= take_hex();
-					if (error.size() > 0) return {};
+					if (!error.empty()) return {};
 					encode_utf8(str, value);
 				} break;
 				default: 
@@ -166,13 +166,13 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 	}
 	const auto take_digits = [&] {
 		bool once = false;
-		while (true) {
+		while (!source.empty()) {
 			char c = peek(source, error);
-			if (error.size() > 0) return;
+			if (!error.empty()) return;
 			if (c >= '0' && c <= '9') {
 				once = true;
 				take_one(source, error);
-				if (error.size() > 0) return;
+				if (!error.empty()) return;
 				++size;
 			} else {
 				break;
@@ -190,22 +190,29 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 	} else {
 		UNWRAP(take_digits());
 	}
-	VALUE_UNWRAP(p, peek(source, error));
-	if (p == '.') {
-		UNWRAP(take_one(source, error));
-		++size;
-		take_digits();
-	}
-	VALUE_UNWRAP(p, peek(source, error));
-	if (p == 'e' || p == 'E') {
-		UNWRAP(take_one(source, error));
-		++size;
+	// these are optional!
+	if (!source.empty()) {
+		// fraction
 		VALUE_UNWRAP(p, peek(source, error));
-		if (p == '-' || p == '+') {
+		if (p == '.') {
 			UNWRAP(take_one(source, error));
 			++size;
+			take_digits();
 		}
-		take_digits();
+	}
+	if (!source.empty()) {
+		// exponent
+		VALUE_UNWRAP(p, peek(source, error));
+		if (p == 'e' || p == 'E') {
+			UNWRAP(take_one(source, error));
+			++size;
+			VALUE_UNWRAP(p, peek(source, error));
+			if (p == '-' || p == '+') {
+				UNWRAP(take_one(source, error));
+				++size;
+			}
+			take_digits();
+		}
 	}
 	#ifndef __cpp_lib_to_chars
 		const std::string str(start.substr(0, size));
