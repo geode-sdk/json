@@ -176,6 +176,9 @@ namespace matjson {
 			if constexpr (requires(const Value& json) { Serialize<T>::is_json(json); }) {
 				return Serialize<T>::is_json(*this);
 			}
+			if constexpr (std::is_same_v<T, Value>) {
+				return true;
+			}
 			switch (type()) {
 				case Type::Array: return std::is_same_v<T, Array>;
 				case Type::Object: return std::is_same_v<T, Object>;
