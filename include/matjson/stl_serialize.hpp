@@ -33,6 +33,10 @@ namespace matjson {
 			}
 			return Value(nullptr);
 		}
+
+		static bool is_json(Value const& value) {
+			return value.is_null() || value.is<T>();
+		}
 	};
 
 	template <class T>
@@ -69,6 +73,11 @@ namespace matjson {
                 }
             );
 			return res;
+		}
+
+		static bool is_json(Value const& value) {
+			// TODO: this is intentionally lazy..
+			return value.is_array();
 		}
 	};
 
@@ -107,6 +116,11 @@ namespace matjson {
             );
 			return res;
 		}
+
+		static bool is_json(Value const& value) {
+			// TODO: this is intentionally lazy..
+			return value.is_array();
+		}
 	};
 
 	template <class T>
@@ -143,6 +157,11 @@ namespace matjson {
             );
 			return res;
 		}
+
+		static bool is_json(Value const& value) {
+			// TODO: this is intentionally lazy..
+			return value.is_array();
+		}
 	};
 
 	template <class T>
@@ -171,6 +190,11 @@ namespace matjson {
 			}
 			return res;
 		}
+
+		static bool is_json(Value const& value) {
+			// TODO: this is intentionally lazy..
+			return value.is_object();
+		}
 	};
 
 	template <class T>
@@ -198,6 +222,11 @@ namespace matjson {
 				res[k] = (Value(v));
 			}
 			return res;
+		}
+
+		static bool is_json(Value const& value) {
+			// TODO: this is intentionally lazy..
+			return value.is_object();
 		}
 	};
 }

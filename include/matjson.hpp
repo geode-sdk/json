@@ -182,7 +182,7 @@ namespace matjson {
 				case Type::String: return std::is_constructible_v<std::string, T>;
 				case Type::Number: return std::is_integral_v<T> || std::is_floating_point_v<T>;
 				case Type::Bool: return std::is_same_v<T, bool>;
-				case Type::Null: return false;
+				case Type::Null: return std::is_same_v<T, std::nullptr_t>;
 			}
 			return false;
 		}
