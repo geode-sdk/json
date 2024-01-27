@@ -29,7 +29,7 @@ object.is_string(); // false
 # Usage
 
 ## Loading from a file
-For the sake of simplicty, the library can only parse from a string, so you will have to load the whole file in memory yourself.
+For the sake of simplicity, the library can only parse from a string, so you will have to load the whole file in memory yourself.
 
 ```cpp
 std::string file_contents = ...
