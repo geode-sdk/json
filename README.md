@@ -45,7 +45,7 @@ matjson::Value object = ...
 std::string file_contents = object.dump();
 write_to_file("epic.json", file_contents);
 ```
-`Value::dump` can also control identation, see [Dumping to string](#dumping-to-string)
+`Value::dump` can also control indentation, see [Dumping to string](#dumping-to-string)
 
 ## Accessing values
 There are many different ways to access inner values, depending on your needs:
@@ -86,7 +86,7 @@ object["hello"].is<std::string>(); // true
 ```
 
 ## Custom types
-It is possible (de)serialize your own types into json, by specializing `matjson::Serialize<T>`.
+It is possible to (de)serialize your own types into json, by specializing `matjson::Serialize<T>`.
 ```cpp
 struct User {
     std::string name;
@@ -134,7 +134,7 @@ value.dump();
 //     "age": 123    
 // }
 
-value.dump(1); // 1 space identation
+value.dump(1); // 1 space indentation
 // {
 //  "name": "mat",
 //  "age": 123    
