@@ -328,7 +328,9 @@ ValuePtr parse_element(std::string_view& source, std::string& error) noexcept {
 
 ValuePtr parse_json(std::string_view source, std::string& error) noexcept {
 	auto value = parse_element(source, error);
-	if (!source.empty()) {
+	// dont replace an existing error, since it probably left some
+	// stuff in the stream anyways
+	if (!source.empty() && error.empty()) {
 		error = "expected eof";
 		return std::unique_ptr<ValueImpl>{};
 	}

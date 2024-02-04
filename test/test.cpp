@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
+#include <catch2/matchers/catch_matchers_all.hpp>
 #include <matjson.hpp>
 #include <matjson/stl_serialize.hpp>
 #include <map>
@@ -247,4 +248,9 @@ TEST_CASE("Invalid json") {
     REQUIRE_THROWS(matjson::parse("{\"hello\"}"));
     REQUIRE_THROWS(matjson::parse("{123: 123}"));
     REQUIRE_THROWS(matjson::parse("[null, 10, \"]"));
+
+    // Very invalid
+    using namespace std::string_view_literals;
+    using Catch::Matchers::Message;
+    REQUIRE_THROWS_MATCHES(matjson::parse("[\"hi\x00the\"]"sv), std::runtime_error, Message("invalid string"));
 }
