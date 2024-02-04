@@ -1,3 +1,5 @@
+#include <cmath>
+
 Value::Value() : Value(Object{}) {}
 
 Value::Value(const char* str) : Value(std::string(str)) {}
@@ -214,7 +216,14 @@ void dump_impl_string(const std::string& str, std::string& result) {
 			case '\t': result += "\\t"sv; break;
 			case '"': result += "\\\""sv; break;
 			case '\\': result += "\\\\"sv; break;
-			default: result.push_back(c); break;
+			default: {
+				// TODO: exceptionless dump to make alk happy
+				// in the meantime, this is better than creating
+				// an invalid json :+1:
+				if (c >= 0 && c < 0x20)
+					throw std::runtime_error("invalid string");
+				result.push_back(c); break;
+			}
 		}
 	}
 	result.push_back('"');
@@ -233,6 +242,11 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 		} break;
 		case Type::Number: {
 			auto number = value.as_double();
+			// TODO: same thing abt exceptions above
+			if (std::isnan(number))
+				throw std::runtime_error("number cant be nan");
+			if (std::isinf(number))
+				throw std::runtime_error("number cant be infinity");
 			#ifndef __cpp_lib_to_chars
 				std::stringstream stream;
 				stream.imbue(std::locale("C"));

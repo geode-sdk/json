@@ -254,3 +254,27 @@ TEST_CASE("Invalid json") {
     using Catch::Matchers::Message;
     REQUIRE_THROWS_MATCHES(matjson::parse("[\"hi\x00the\"]"sv), std::runtime_error, Message("invalid string"));
 }
+
+TEST_CASE("Invalid dump") {
+    matjson::Value obj;
+    using namespace std::string_literals;
+    // if this somehow happens (cough cough)
+    obj["Hello"] = "Wor\x00ld"s;
+    // then dump() should throw because it would create an invalid json
+    REQUIRE_THROWS(obj.dump());
+
+    obj.as_object().clear();
+    // no throw
+    obj.dump();
+
+    // json cant represent nan or infinity, sadly
+
+    obj["Hi"] = NAN;
+    REQUIRE_THROWS(obj.dump());
+
+    obj.as_object().clear();
+    obj.dump();
+    
+    obj["wow"] = INFINITY;
+    REQUIRE_THROWS(obj.dump());
+}
