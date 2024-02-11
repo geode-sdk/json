@@ -290,8 +290,13 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 					}
 				}
 			};
-			add_line(depth + 1);
 			const auto& obj = value.as_object();
+			if (obj.empty()) {
+				result.push_back('}');
+				break;
+			}
+
+			add_line(depth + 1);
 			bool first = true;
 			for (const auto& [key, value] : obj) {
 				if (!first) {
@@ -301,7 +306,7 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 				first = false;
 
 				dump_impl_string(key, result);
-				
+
 				result.push_back(':');
 				if (indentation != matjson::NO_INDENTATION)
 					result.push_back(' ');

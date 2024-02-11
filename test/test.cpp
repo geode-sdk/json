@@ -121,7 +121,9 @@ static std::string_view COMPLEX_INPUT = R"({
         "half": 11.5,
         "nested": {
             "again": true
-        }
+        },
+        "empty": {},
+        "empty_arr": []
     }
 })";
 
