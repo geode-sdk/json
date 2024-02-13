@@ -112,13 +112,20 @@ struct matjson::Serialize<User> {
     // It is only used if you do value.is<User>();
 };
 
-User user = { "mat", 123 };
-matjson::Value value = user; // gets converted into json
-value.dump(matjson::NO_INDENTATION); // {"name":"mat","age":123}
-value["name"] = "hello";
-// you have to use the templated methods for accessing custom types!
-auto user2 = value.as<User>();
-user2.name; // "hello"
+int main() {
+    User user = { "mat", 123 };
+
+    // gets implicitly converted into json
+    matjson::Value value = user;
+
+    value.dump(matjson::NO_INDENTATION); // {"name":"mat","age":123}
+
+    value["name"] = "hello";
+    // you have to use the templated methods for accessing custom types!
+    // it will *not* implicitly convert to User
+    User user2 = value.as<User>();
+    user2.name; // "hello"
+}
 ```
 
 ## Dumping to string
