@@ -299,4 +299,7 @@ TEST_CASE("Number precision") {
 
     obj = 1234567895017;
     REQUIRE(obj.dump() == "1234567895017");
+
+    obj = 1234567895017.234;
+    REQUIRE(obj.dump() == "1234567895017.234");
 }

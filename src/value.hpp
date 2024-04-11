@@ -1,4 +1,6 @@
 #include <cmath>
+#include "external/dragonbox.h"
+#include <array>
 
 Value::Value() : Value(Object{}) {}
 
@@ -248,10 +250,11 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 			if (std::isinf(number))
 				throw std::runtime_error("number cant be infinity");
 			#ifndef __cpp_lib_to_chars
-				std::stringstream stream;
-				stream.imbue(std::locale("C"));
-				stream << number;
-				result += stream.str();
+				// use the dragonbox algorithm, code from
+				// https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc				
+				std::array<char, dragonbox::DtoaMinBufferLength> buffer;
+				auto* end = dragonbox::Dtoa(buffer.data(), number);
+				result += std::string_view(buffer.data(), end - buffer.data());
 			#else
 				std::array<char, 32> buffer;
 				auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
