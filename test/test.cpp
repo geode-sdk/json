@@ -280,3 +280,26 @@ TEST_CASE("Invalid dump") {
     obj["wow"] = INFINITY;
     REQUIRE_THROWS(obj.dump());
 }
+
+TEST_CASE("Number precision") {
+    matjson::Value obj = 0.1;
+    REQUIRE(obj.dump() == "0.1");
+
+    obj = 123;
+    REQUIRE(obj.dump() == "123");
+
+    obj = 123.23;
+    REQUIRE(obj.dump() == "123.23");
+
+    // internally these are stored as double, but that
+    // should have enough precision for these big numbers.
+    // maybe in the future consider storing them as integers
+    obj = 123456789;
+    REQUIRE(obj.dump() == "123456789");
+
+    obj = 1234567895017;
+    REQUIRE(obj.dump() == "1234567895017");
+
+    obj = 1234567895017.234;
+    REQUIRE(obj.dump() == "1234567895017.234");
+}

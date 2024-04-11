@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 2.0.0)
+project(mat-json VERSION 2.1.0)
+
+set(SOURCE_FILES
+    src/json.cpp
+    src/external/dragonbox.cpp
+)
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
@@ -9,9 +14,9 @@ if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
 
     add_library(mat-json-impl INTERFACE)
     target_link_libraries(mat-json-impl INTERFACE mat-json)
-    target_sources(mat-json-impl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/json.cpp)
+    target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
 else()
-    add_library(mat-json src/json.cpp)
+    add_library(mat-json ${SOURCE_FILES})
 
     target_compile_features(mat-json PUBLIC cxx_std_20)
     
