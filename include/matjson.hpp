@@ -145,8 +145,8 @@ namespace matjson {
 				return as_int();
 			} else if constexpr (std::is_floating_point_v<T>) {
 				return as_double();
-			} else if constexpr (requires(const Value& json) { Serialize<T>::from_json(json); }) {
-				return Serialize<T>::from_json(*this);
+			} else if constexpr (requires(const Value& json) { Serialize<std::decay_t<T>>::from_json(json); }) {
+				return Serialize<std::decay_t<T>>::from_json(*this);
 			} else if constexpr (std::is_same_v<T, Array>) {
 				return as_array();
 			} else if constexpr (std::is_same_v<T, Object>) {
@@ -173,8 +173,8 @@ namespace matjson {
 
 		template <class T>
 		bool is() const {
-			if constexpr (requires(const Value& json) { Serialize<T>::is_json(json); }) {
-				return Serialize<T>::is_json(*this);
+			if constexpr (requires(const Value& json) { Serialize<std::decay_t<T>>::is_json(json); }) {
+				return Serialize<std::decay_t<T>>::is_json(*this);
 			}
 			if constexpr (std::is_same_v<T, Value>) {
 				return true;
