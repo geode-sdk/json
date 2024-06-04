@@ -113,11 +113,13 @@ namespace matjson {
 		int as_int() const;
 		double as_double() const;
 
-		const Object& as_object() const;
-		Object& as_object();
+		const Object& as_object() const&;
+		Object& as_object() &;
+		Object as_object() &&;
 		
-		const Array& as_array() const;
-		Array& as_array();
+		const Array& as_array() const&;
+		Array& as_array() &;
+		Array as_array() &&;
 
 		bool operator==(const Value&) const;
 		bool operator<(const Value&) const;
@@ -138,7 +140,7 @@ namespace matjson {
 		std::string dump(int indentation_size = 4) const;
 
 		template <class T>
-		decltype(auto) as() const {
+		decltype(auto) as() const& {
 			if constexpr (std::is_same_v<T, bool>) {
 				return as_bool();
 			} else if constexpr (std::is_integral_v<T>) {
@@ -161,7 +163,7 @@ namespace matjson {
 		}
 
 		template <class T>
-		decltype(auto) as() {
+		decltype(auto) as() & {
 			if constexpr (std::is_same_v<T, Array>) {
 				return as_array();
 			} else if constexpr (std::is_same_v<T, Object>) {
@@ -170,6 +172,9 @@ namespace matjson {
 				return static_cast<const Value*>(this)->as<T>();
 			}
 		}
+
+		template <class T>
+		decltype(auto) as() &&;
 
 		template <class T>
 		bool is() const {
@@ -264,6 +269,17 @@ namespace matjson {
 		bool operator<(const Object&) const;
 		bool operator>(const Object&) const;
 	};
+
+	template <class T>
+	decltype(auto) Value::as() && {
+		if constexpr (std::is_same_v<T, Array>) {
+			return std::move(*this).as_array();
+		} else if constexpr (std::is_same_v<T, Object>) {
+			return std::move(*this).as_object();
+		} else {
+			return static_cast<const Value*>(this)->as<T>();
+		}
+	}
 
 	inline Value parse(std::string_view source) {
 		return Value::from_str(source);

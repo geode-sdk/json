@@ -57,11 +57,13 @@ std::string Value::as_string() const { return m_impl->as_string(); }
 int Value::as_int() const { return static_cast<int>(m_impl->as_double()); }
 double Value::as_double() const { return m_impl->as_double(); }
 
-const Object& Value::as_object() const { return m_impl->as_object(); }
-Object& Value::as_object() { return m_impl->as_object(); }
+const Object& Value::as_object() const& { return m_impl->as_object(); }
+Object& Value::as_object() & { return m_impl->as_object(); }
+Object Value::as_object() && { return m_impl->as_object(); }
 
-const Array& Value::as_array() const { return m_impl->as_array(); }
-Array& Value::as_array() { return m_impl->as_array(); }
+const Array& Value::as_array() const& { return m_impl->as_array(); }
+Array& Value::as_array() & { return m_impl->as_array(); }
+Array Value::as_array() && { return m_impl->as_array(); }
 
 Value Value::from_str(std::string_view source) {
 	std::string error;

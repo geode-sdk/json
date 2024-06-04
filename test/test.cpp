@@ -303,3 +303,12 @@ TEST_CASE("Number precision") {
     obj = 1234567895017.234;
     REQUIRE(obj.dump() == "1234567895017.234");
 }
+
+TEST_CASE("Rvalue as_array() return") {
+    auto get_json = [] {
+        return matjson::parse("[1,2,3,4]");
+    };
+    // `auto& arr = get_json().as_array();` should fail to compile, however i can't test that
+    auto const& arr = get_json().as_array();
+    REQUIRE(arr.size() == 4);
+}
