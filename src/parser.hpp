@@ -197,7 +197,7 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 		if (p == '.') {
 			UNWRAP(take_one(source, error));
 			++size;
-			take_digits();
+			UNWRAP(take_digits());
 		}
 	}
 	if (!source.empty()) {
@@ -211,7 +211,7 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 				UNWRAP(take_one(source, error));
 				++size;
 			}
-			take_digits();
+			UNWRAP(take_digits());
 		}
 	}
 	#ifndef __cpp_lib_to_chars
