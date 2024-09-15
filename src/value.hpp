@@ -14,6 +14,14 @@ Value::Value(double value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
 
+Value::Value(intmax_t value) {
+	m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
+Value::Value(uintmax_t value) {
+	m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
 Value::Value(bool value) {
 	m_impl = std::make_unique<ValueImpl>(Type::Bool, value);
 }
@@ -54,8 +62,10 @@ Type Value::type() const {
 // TODO: these will throw a variant access exception, maybe make our own error type?
 bool Value::as_bool() const { return m_impl->as_bool(); }
 std::string Value::as_string() const { return m_impl->as_string(); }
-int Value::as_int() const { return static_cast<int>(m_impl->as_double()); }
-double Value::as_double() const { return m_impl->as_double(); }
+int Value::as_int() const { return static_cast<int>(m_impl->as_double_casted()); }
+intmax_t Value::as_integer() const { return m_impl->as_integer_casted(); }
+uintmax_t Value::as_uinteger() const { return m_impl->as_uinteger_casted(); }
+double Value::as_double() const { return m_impl->as_double_casted(); }
 
 const Object& Value::as_object() const& { return m_impl->as_object(); }
 Object& Value::as_object() & { return m_impl->as_object(); }
@@ -165,48 +175,25 @@ bool Value::try_erase(std::string_view key) noexcept {
 }
 
 bool Value::operator==(const Value& other) const {
-	if (type() != other.type()) return false;
-	switch (type()) {
-		case Type::Null: return true;
-		case Type::Bool: return as_bool() == other.as_bool();
-		case Type::String: return as_string() == other.as_string();
-		case Type::Number: return as_double() == other.as_double();
-		case Type::Array: return as_array() == other.as_array();
-		case Type::Object: return as_object() == other.as_object();
-		default: return false;
-	}
+	return *m_impl == *other.m_impl;
 }
 
 bool Value::operator<(const Value& other) const {
-	if (type() < other.type()) {
-		return true;
-	}
-	if (type() != other.type()) return false;
-	switch (type()) {
-		case Type::Null: return true;
-		case Type::Bool: return as_bool() < other.as_bool();
-		case Type::String: return as_string() < other.as_string();
-		case Type::Number: return as_double() < other.as_double();
-		case Type::Array: return as_array() < other.as_array();
-		case Type::Object: return as_object() < other.as_object();
-		default: return false;
-	}
+	return *m_impl < *other.m_impl;
 }
 
 bool Value::operator>(const Value& other) const {
-	if (type() > other.type()) {
-		return true;
-	}
-	if (type() != other.type()) return false;
-	switch (type()) {
-		case Type::Null: return false;
-		case Type::Bool: return as_bool() > other.as_bool();
-		case Type::String: return as_string() > other.as_string();
-		case Type::Number: return as_double() > other.as_double();
-		case Type::Array: return as_array() > other.as_array();
-		case Type::Object: return as_object() > other.as_object();
-		default: return false;
-	}
+	return *m_impl > *other.m_impl;
+}
+
+bool Value::is_double() const {
+	return m_impl->is_double();
+}
+bool Value::is_integer() const {
+	return m_impl->is_integer();
+}
+bool Value::is_uinteger() const {
+	return m_impl->is_uinteger();
 }
 
 void dump_impl_string(const std::string& str, std::string& result) {
@@ -246,12 +233,7 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 			dump_impl_string(value.as_string(), result);
 		} break;
 		case Type::Number: {
-			auto number = value.as_double();
-			// TODO: same thing abt exceptions above
-			if (std::isnan(number))
-				throw std::runtime_error("number cant be nan");
-			if (std::isinf(number))
-				throw std::runtime_error("number cant be infinity");
+			auto numberFunc = [&](auto number) {
 			#ifndef __cpp_lib_to_chars
 				// use the dragonbox algorithm, code from
 				// https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc				
@@ -267,6 +249,22 @@ void dump_impl(const Value& value, std::string& result, int indentation, int dep
 				}
 				result += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
 			#endif
+			};
+			if (value.is_double()) {
+				auto number = value.as_double();
+				// TODO: same thing abt exceptions above
+				if (std::isnan(number))
+					throw std::runtime_error("number cant be nan");
+				if (std::isinf(number))
+					throw std::runtime_error("number cant be infinity");
+				numberFunc(number);
+			}
+			else if (value.is_integer()) {
+				numberFunc(value.as_integer());
+			}
+			else {
+				numberFunc(value.as_uinteger());
+			}
 		} break;
 		case Type::Array: {
 			result.push_back('[');
@@ -344,8 +342,14 @@ std::size_t std::hash<matjson::Value>::operator()(matjson::Value const& value) c
 	if (value.is_bool()) {
 		return value.as_bool();
 	}
-	if (value.is_number()) {
+	if (value.is_double()) {
 		return std::hash<double>()(value.as_double());
+	}
+	if (value.is_integer()) {
+		return std::hash<intmax_t>()(value.as_integer());
+	}
+	if (value.is_uinteger()) {
+		return std::hash<uintmax_t>()(value.as_uinteger());
 	}
 	if (value.is_string()) {
 		return std::hash<std::string>()(value.as_string());

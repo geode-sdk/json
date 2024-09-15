@@ -25,7 +25,7 @@ struct matjson::Serialize<CoolStruct> {
 	static CoolStruct from_json(const matjson::Value& value) {
 		return CoolStruct {
 			.name = value["name"].as_string(),
-			.value = value["value"].as_int()
+			.value = static_cast<int>(value["value"].as_integer())
 		};
 	}
 };
@@ -46,7 +46,7 @@ TEST_CASE("Object basics") {
 
     REQUIRE(obj["foo"] == 42);
     REQUIRE(obj["foo"] == 42.0);
-    REQUIRE(obj["foo"].as_int() == 42);
+    REQUIRE(obj["foo"].as_integer() == 42);
     REQUIRE(obj["foo"].as_double() == 42.0);
 
     auto copy = obj;
@@ -208,12 +208,18 @@ TEST_CASE("Mutate object") {
 }
 
 TEST_CASE("Parse unit values") {
-    REQUIRE(matjson::parse("123").as_int() == 123);
-    REQUIRE(matjson::parse("-123").as_int() == -123);
-    REQUIRE(matjson::parse("123\n").as_int() == 123);
-    REQUIRE(matjson::parse("   123  ").as_int() == 123);
-    REQUIRE(matjson::parse("123  ").as_int() == 123);
-    REQUIRE(matjson::parse("   123").as_int() == 123);
+    REQUIRE(matjson::parse("123").as_integer() == 123);
+    REQUIRE(matjson::parse("-123").as_integer() == -123);
+    REQUIRE(matjson::parse("123\n").as_integer() == 123);
+    REQUIRE(matjson::parse("   123  ").as_integer() == 123);
+    REQUIRE(matjson::parse("123  ").as_integer() == 123);
+    REQUIRE(matjson::parse("   123").as_integer() == 123);
+
+    REQUIRE(matjson::parse("123").as_uinteger() == 123);
+    REQUIRE(matjson::parse("123\n").as_uinteger() == 123);
+    REQUIRE(matjson::parse("   123  ").as_uinteger() == 123);
+    REQUIRE(matjson::parse("123  ").as_uinteger() == 123);
+    REQUIRE(matjson::parse("   123").as_uinteger() == 123);
 
     REQUIRE(matjson::parse("0.0").as_double() == 0.0);
     REQUIRE(matjson::parse("0.05").as_double() == 0.05);
@@ -329,4 +335,14 @@ TEST_CASE("Special characters") {
     )");
 
     REQUIRE(obj["control"].as_string() == "\b\f\n\r\t\x12 ");
+}
+
+TEST_CASE("Very big numbers") {
+    matjson::Value obj = 1ll << 61;
+    REQUIRE(obj.as_integer() == 1ll << 61);
+    REQUIRE(obj.as_uinteger() == 1ull << 61);
+
+    obj = (1ull << 63) + 1;
+    REQUIRE(obj.as_integer() == (1ll << 63) + 1); // actually negative!
+    REQUIRE(obj.as_uinteger() == (1ull << 63) + 1); // correct one
 }

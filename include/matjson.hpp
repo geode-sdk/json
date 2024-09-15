@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <limits>
 #include <stdexcept>
 
 #ifdef MAT_JSON_DYNAMIC
@@ -65,13 +66,21 @@ namespace matjson {
 		Value(std::string value);
 		Value(const char* value);
 		Value(double value);
+		Value(intmax_t value);
+		Value(uintmax_t value);
 		Value(bool value);
 		Value(Object value);
 		Value(Array value);
 		Value(std::nullptr_t);
 		template <class T>
-		requires std::is_integral_v<T>
+		requires std::is_floating_point_v<T>
 		Value(T value) : Value(static_cast<double>(value)) {}
+		template <class T>
+		requires (std::numeric_limits<T>::is_integer && std::numeric_limits<T>::is_signed)
+		Value(T value) : Value(static_cast<intmax_t>(value)) {}
+		template <class T>
+		requires (std::numeric_limits<T>::is_integer && !std::numeric_limits<T>::is_signed)
+		Value(T value) : Value(static_cast<uintmax_t>(value)) {}
 
 		Value(const Value&);
 		Value(Value&&);
@@ -110,7 +119,11 @@ namespace matjson {
 
 		bool as_bool() const;
 		std::string as_string() const;
+
+		[[deprecated("use as_integer or as_uinteger")]]
 		int as_int() const;
+		intmax_t as_integer() const;
+		uintmax_t as_uinteger() const;
 		double as_double() const;
 
 		const Object& as_object() const&;
@@ -131,6 +144,9 @@ namespace matjson {
 		bool is_bool() const { return type() == Type::Bool; }
 		bool is_array() const { return type() == Type::Array; }
 		bool is_object() const { return type() == Type::Object; }
+		bool is_double() const;
+		bool is_integer() const;
+		bool is_uinteger() const;
 
 		bool contains(std::string_view key) const;
 		size_t count(std::string_view key) const;
@@ -143,8 +159,10 @@ namespace matjson {
 		decltype(auto) as() const& {
 			if constexpr (std::is_same_v<T, bool>) {
 				return as_bool();
-			} else if constexpr (std::is_integral_v<T>) {
-				return as_int();
+			} else if constexpr (std::numeric_limits<T>::is_integer && std::numeric_limits<T>::is_signed) {
+				return as_integer();
+			} else if constexpr (std::numeric_limits<T>::is_integer && !std::numeric_limits<T>::is_signed) {
+				return as_uinteger();
 			} else if constexpr (std::is_floating_point_v<T>) {
 				return as_double();
 			} else if constexpr (requires(const Value& json) { Serialize<std::decay_t<T>>::from_json(json); }) {

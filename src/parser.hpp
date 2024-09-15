@@ -181,10 +181,13 @@ std::string parse_string(std::string_view& source, std::string& error) noexcept 
 ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 	size_t size = 0;
 	auto start = source;
+	bool negative = false;
+	bool floating = false;
 	VALUE_UNWRAP(char p, peek(source, error));
 	if (p == '-') {
 		UNWRAP(take_one(source, error));
 		++size;
+		negative = true;
 	}
 	const auto take_digits = [&] {
 		bool once = false;
@@ -220,6 +223,7 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 			UNWRAP(take_one(source, error));
 			++size;
 			UNWRAP(take_digits());
+			floating = true;
 		}
 	}
 	if (!source.empty()) {
@@ -234,20 +238,35 @@ ValuePtr parse_number(std::string_view& source, std::string& error) noexcept {
 				++size;
 			}
 			UNWRAP(take_digits());
+			floating = true;
 		}
 	}
+	auto numberFunc = [&](auto& value, auto fallFunc) {
 	#ifndef __cpp_lib_to_chars
 		const std::string str(start.substr(0, size));
 		// FIXME: std::stod is locale specific, might break on some machines
-		return std::make_unique<ValueImpl>(Type::Number, std::stod(str));
+		return std::make_unique<ValueImpl>(Type::Number, fallFunc(str));
 	#else
-		double value;
 		if (auto result = std::from_chars(start.data(), start.data() + size, value); result.ec != std::errc()) {
 			error = "failed to parse number";
-			return {};
+			return ValuePtr();
 		}
 		return std::make_unique<ValueImpl>(Type::Number, value);
 	#endif
+	};
+	if (floating) {
+		double value;
+		return numberFunc(value, [](auto const& str) { return std::stod(str); });
+	} else {
+		if (negative) {
+			intmax_t value;
+			return numberFunc(value, [](auto const& str) { return std::stoll(str); });
+		}
+		else {
+			uintmax_t value;
+			return numberFunc(value, [](auto const& str) { return std::stoull(str); });
+		}
+	}
 }
 
 ValuePtr parse_element(std::string_view& source, std::string& error) noexcept;
