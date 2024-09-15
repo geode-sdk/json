@@ -221,11 +221,12 @@ void dump_impl_string(const std::string& str, std::string& result) {
 			case '"': result += "\\\""sv; break;
 			case '\\': result += "\\\\"sv; break;
 			default: {
-				// TODO: exceptionless dump to make alk happy
-				// in the meantime, this is better than creating
-				// an invalid json :+1:
-				if (c >= 0 && c < 0x20)
-					throw std::runtime_error("invalid string");
+				if (c >= 0 && c < 0x20) {
+					std::array<char, 7> buffer;
+					snprintf(buffer.data(), buffer.size(), "\\u%04x", c);
+					result += buffer.data();
+					break;
+				}
 				result.push_back(c); break;
 			}
 		}

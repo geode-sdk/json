@@ -140,6 +140,28 @@ std::string parse_string(std::string_view& source, std::string& error) noexcept 
 					value |= take_hex() << 8;
 					value |= take_hex() << 4;
 					value |= take_hex();
+					if (0xd800 <= value && value <= 0xdbff) {
+						// surrogate pair
+						if (take_one(source, error) != '\\') {
+							error = "expected backslash";
+							return {};
+						}
+						if (take_one(source, error) != 'u') {
+							error = "expected u";
+							return {};
+						}
+						int32_t value2 = 0;
+						value2 |= take_hex() << 12;
+						value2 |= take_hex() << 8;
+						value2 |= take_hex() << 4;
+						value2 |= take_hex();
+						if (0xdc00 <= value2 && value2 <= 0xdfff) {
+							value = 0x10000 + ((value & 0x3ff) << 10) + (value2 & 0x3ff);
+						} else {
+							error = "invalid surrogate pair";
+							return {};
+						}
+					}
 					if (!error.empty()) return {};
 					encode_utf8(str, value);
 				} break;

@@ -260,12 +260,6 @@ TEST_CASE("Invalid json") {
 TEST_CASE("Invalid dump") {
     matjson::Value obj;
     using namespace std::string_literals;
-    // if this somehow happens (cough cough)
-    obj["Hello"] = "Wor\x00ld"s;
-    // then dump() should throw because it would create an invalid json
-    REQUIRE_THROWS(obj.dump());
-
-    obj.as_object().clear();
     // no throw
     obj.dump();
 
@@ -311,4 +305,28 @@ TEST_CASE("Rvalue as_array() return") {
     // `auto& arr = get_json().as_array();` should fail to compile, however i can't test that
     auto const& arr = get_json().as_array();
     REQUIRE(arr.size() == 4);
+}
+
+TEST_CASE("Parsing unicode characters") {
+    auto obj = matjson::parse(R"(
+        {
+            "hello": "\u00D3l\u00E1!",
+            "cool": "😎",
+            "pair": "\uD83D\uDE00"
+        }
+    )");
+
+    REQUIRE(obj["hello"].as_string() == "Ólá!");
+    REQUIRE(obj["cool"].as_string() == "😎");
+    REQUIRE(obj["pair"].as_string() == "😀");
+}
+
+TEST_CASE("Special characters") {
+    auto obj = matjson::parse(R"(
+        {
+            "control": "\b\f\n\r\t\u0012 "
+        }
+    )");
+
+    REQUIRE(obj["control"].as_string() == "\b\f\n\r\t\x12 ");
 }
