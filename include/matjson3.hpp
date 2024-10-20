@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Geode/Result.hpp>
-#include <cstdint>
+#include <istream>
 #include <memory>
 #include <vector>
 
@@ -61,8 +61,30 @@ namespace matjson {
         /// @return The parsed JSON value or an error
         static geode::Result<Value, ParseError> parse(std::string_view source);
 
-        geode::Result<Value, PenisError> get(std::string_view key) const;
-        geode::Result<Value, PenisError> get(size_t index) const;
+        /// Parses JSON from an input stream
+        /// @param source Stream to parse
+        /// @return The parsed JSON value or an error
+        static geode::Result<Value, ParseError> parse(std::istream& source);
+
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key, or an error if it does not exist.
+        geode::Result<Value&, PenisError> get(std::string_view key);
+
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key, or an error if it does not exist.
+        geode::Result<Value const&, PenisError> get(std::string_view key) const;
+
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index, or an error if the index is out of bounds.
+        geode::Result<Value&, PenisError> get(size_t index);
+
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index, or an error if the index is out of bounds.
+        geode::Result<Value const&, PenisError> get(size_t index) const;
 
         /// Returns the value associated with the given key
         /// @param key Object key
@@ -80,14 +102,14 @@ namespace matjson {
 
         /// Returns the value associated with the given index
         /// @param index Array index
-        /// @return The value associated with the key
+        /// @return The value associated with the index
         /// @note If the index is out of bounds, or this is not an array,
         ///       returns a null value
         Value& operator[](size_t index);
 
         /// Returns the value associated with the given index
         /// @param index Array index
-        /// @return The value associated with the key
+        /// @return The value associated with the index
         /// @note If the index is out of bounds, or this is not an array,
         ///       returns a null value
         Value const& operator[](size_t index) const;
@@ -157,6 +179,14 @@ namespace matjson {
     /// @note Shorthand for Value::parse
     inline geode::Result<Value, ParseError> parse(std::string_view source) {
         return Value::parse(source);
+    }
+
+    /// Parses JSON from an input stream
+    /// @param source Stream to parse
+    /// @return The parsed JSON value or an error
+    /// @note Shorthand for Value::parse
+    inline geode::Result<Value, ParseError> parse(std::istream& stream) {
+        return Value::parse(stream);
     }
 
     // This is used for destructuring the value, useful for range for loops:

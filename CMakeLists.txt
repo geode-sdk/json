@@ -14,7 +14,7 @@ if (NOT COMMAND CPMAddPackage)
     include(cmake/get_cpm.cmake)
 endif()
 
-CPMAddPackage("gh:geode-sdk/result#ecc518c")
+CPMAddPackage("gh:geode-sdk/result#dc5ee4e")
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
@@ -35,12 +35,12 @@ endif()
 
 if (PROJECT_IS_TOP_LEVEL)
     if (NOT WIN32)
-        add_compile_options(-fsanitize=address,undefined)
-        add_link_options(-fsanitize=address,undefined)
+        add_compile_options("$<$<CONFIG:DEBUG>:-fsanitize=address,undefined>")
+        add_link_options("$<$<CONFIG:DEBUG>:-fsanitize=address,undefined>")
     endif()
     target_compile_options(mat-json PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
-        $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
+        $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wno-gnu-statement-expression-from-macro-expansion>
     )
     add_subdirectory(test)
 endif()

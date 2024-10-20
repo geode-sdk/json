@@ -1,7 +1,9 @@
 #include "impl.hpp"
 
 #include <charconv>
+#include <istream>
 #include <matjson3.hpp>
+#include <sstream>
 #include <string>
 
 using namespace matjson;
@@ -13,33 +15,36 @@ bool isWhitespace(char c) {
 }
 
 struct StringStream {
-    // does not take ownership of the string, assumes it lives somewhere else
-    std::string_view value;
+    std::istream& stream;
 
     Result<char, ParseError> take() noexcept {
-        if (value.empty()) return Err("eof");
-        auto c = value.front();
-        value = value.substr(1);
-        return Ok(c);
+        char ch;
+        if (!stream.get(ch)) return Err("eof");
+        return Ok(ch);
     }
 
-    Result<std::string_view, ParseError> take(size_t n) {
-        if (value.size() < n) return Err("eof");
-        auto sub = value.substr(0, n);
-        value = value.substr(n);
-        return Ok(sub);
+    Result<std::string, ParseError> take(size_t n) {
+        std::string buffer;
+        buffer.resize(n);
+        if (!stream.read(buffer.data(), n)) return Err("eof");
+        return Ok(buffer);
     }
 
     Result<char, ParseError> peek() noexcept {
-        if (value.empty()) return Err("eof");
-        return Ok(value.front());
+        auto ch = stream.peek();
+        if (ch == EOF) return Err("eof");
+        return Ok(ch);
     }
 
     // takes until the next char is not whitespace
     void skipWhitespace() noexcept {
-        while (!value.empty() && isWhitespace(value.front())) {
-            value = value.substr(1);
+        while (stream && isWhitespace(stream.peek())) {
+            stream.get();
         }
+    }
+
+    explicit operator bool() const noexcept {
+        return bool(stream);
     }
 };
 
@@ -169,21 +174,23 @@ Result<std::string, ParseError> parseString(StringStream& stream) noexcept {
 }
 
 Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
-    size_t size = 0;
-    auto start = stream.value;
+    std::string buffer;
+    auto const addToBuffer = [&]() -> Result<void, ParseError> {
+        GEODE_UNWRAP_INTO(char c, stream.take());
+        buffer.push_back(c);
+        return Ok();
+    };
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p == '-') {
-        GEODE_UNWRAP(stream.take());
-        ++size;
+        GEODE_UNWRAP(addToBuffer());
     }
     auto const takeDigits = [&]() -> Result<void, ParseError> {
         bool once = false;
-        while (!stream.value.empty()) {
+        while (stream) {
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c >= '0' && c <= '9') {
                 once = true;
-                GEODE_UNWRAP(stream.take());
-                ++size;
+                GEODE_UNWRAP(addToBuffer());
             }
             else {
                 break;
@@ -196,43 +203,40 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
     };
     GEODE_UNWRAP_INTO(p, stream.peek());
     if (p == '0') {
-        GEODE_UNWRAP(stream.take());
-        ++size;
+        GEODE_UNWRAP(addToBuffer());
     }
     else {
         GEODE_UNWRAP(takeDigits());
     }
     // these are optional!
-    if (!stream.value.empty()) {
+    if (stream) {
         // fraction
         GEODE_UNWRAP_INTO(p, stream.peek());
         if (p == '.') {
-            GEODE_UNWRAP(stream.take());
-            ++size;
+            GEODE_UNWRAP(addToBuffer());
+
             GEODE_UNWRAP(takeDigits());
         }
     }
-    if (!stream.value.empty()) {
+    if (stream) {
         // exponent
         GEODE_UNWRAP_INTO(p, stream.peek());
         if (p == 'e' || p == 'E') {
-            GEODE_UNWRAP(stream.take());
-            ++size;
+            GEODE_UNWRAP(addToBuffer());
+
             GEODE_UNWRAP_INTO(p, stream.peek());
             if (p == '-' || p == '+') {
-                GEODE_UNWRAP(stream.take());
-                ++size;
+                GEODE_UNWRAP(addToBuffer());
             }
             GEODE_UNWRAP(takeDigits());
         }
     }
 #ifndef __cpp_lib_to_chars
-    const std::string str(start.substr(0, size));
     // FIXME: std::stod is locale specific, might break on some machines
-    return Ok(std::make_unique<ValueImpl>(Type::Number, std::stod(str)));
+    return Ok(std::make_unique<ValueImpl>(Type::Number, std::stod(buffer)));
 #else
     double value;
-    if (auto result = std::from_chars(start.data(), start.data() + size, value);
+    if (auto result = std::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
         result.ec != std::errc()) {
         return Err("failed to parse number");
     }
@@ -342,10 +346,15 @@ Result<ValuePtr, ParseError> parseElement(StringStream& stream) noexcept {
     return Ok(std::move(value));
 }
 
-Result<Value, ParseError> Value::parse(std::string_view source) {
-    StringStream stream{source};
+Result<Value, ParseError> Value::parse(std::istream& sourceStream) {
+    StringStream stream{sourceStream};
 
     return parseElement(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));
     });
+}
+
+Result<Value, ParseError> Value::parse(std::string_view source) {
+    std::istringstream strStream{std::string(source)};
+    return Value::parse(strStream);
 }

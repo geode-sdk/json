@@ -12,8 +12,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # FetchContent_MakeAvailable(Catch2)
 # list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
+CPMAddPackage("gh:fmtlib/fmt#11.0.2")
+
 add_executable(tests test.cpp)
-target_link_libraries(tests PRIVATE mat-json)
+target_link_libraries(tests PRIVATE mat-json fmt)
 
 # include(CTest)
 # include(Catch)

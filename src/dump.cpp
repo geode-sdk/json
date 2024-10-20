@@ -22,7 +22,7 @@ void dumpJsonString(std::string_view str, std::string& out) {
             case '\r': out += "\\r"sv; break;
             case '\t': out += "\\t"sv; break;
             default: {
-                if (c >= 0 && c <= 0x20) {
+                if (c >= 0 && c < 0x20) {
                     std::array<char, 7> buffer;
                     snprintf(buffer.data(), buffer.size(), "\\u%04x", c);
                     out += buffer.data();
