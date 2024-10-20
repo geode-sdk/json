@@ -14,7 +14,7 @@ if (NOT COMMAND CPMAddPackage)
     include(cmake/get_cpm.cmake)
 endif()
 
-CPMAddPackage("gh:geode-sdk/result#58c15d8")
+CPMAddPackage("gh:geode-sdk/result#ecc518c")
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
@@ -34,8 +34,12 @@ else()
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)
+    if (NOT WIN32)
+        add_compile_options(-fsanitize=address,undefined)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
     target_compile_options(mat-json PRIVATE
-        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
         $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
     )
     add_subdirectory(test)

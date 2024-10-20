@@ -39,12 +39,12 @@ namespace matjson {
         Value();
         Value(std::string_view value);
         Value(char const* value);
-        Value(bool value);
         Value(Array value);
         Value(std::nullptr_t);
         Value(double value);
-        Value(std::int64_t value);
-        Value(std::uint64_t value);
+        // Value(std::int64_t value);
+        // Value(std::uint64_t value);
+        Value(bool value);
 
         template <class T>
         // Prevents implicit conversion from pointer to bool

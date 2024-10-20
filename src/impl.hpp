@@ -68,21 +68,8 @@ public:
     }
 };
 
-// oh alk..
-#define GEODE_CONCAT_(left, right) left##right
-#define GEODE_CONCAT(left, right) GEODE_CONCAT_(left, right)
+using ValuePtr = std::unique_ptr<matjson::ValueImpl>;
 
-#define GEODE_UNWRAP_INTO(into, ...)                                        \
-    auto GEODE_CONCAT(unwrap_res_, __LINE__) = (__VA_ARGS__);               \
-    if (GEODE_CONCAT(unwrap_res_, __LINE__).isErr()) {                      \
-        return geode::Err(GEODE_CONCAT(unwrap_res_, __LINE__).unwrapErr()); \
-    }                                                                       \
-    into = GEODE_CONCAT(unwrap_res_, __LINE__).unwrap()
+matjson::Value* getDummyNullValue();
 
-#define GEODE_UNWRAP(...)                                                       \
-    do {                                                                        \
-        auto GEODE_CONCAT(unwrap_res_, __LINE__) = (__VA_ARGS__);               \
-        if (GEODE_CONCAT(unwrap_res_, __LINE__).isErr()) {                      \
-            return geode::Err(GEODE_CONCAT(unwrap_res_, __LINE__).unwrapErr()); \
-        }                                                                       \
-    } while (false)
+#define CHECK_DUMMY_NULL (this->m_impl == getDummyNullValue()->m_impl)

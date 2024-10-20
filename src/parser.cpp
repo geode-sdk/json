@@ -43,8 +43,6 @@ struct StringStream {
     }
 };
 
-using ValuePtr = std::unique_ptr<ValueImpl>;
-
 Result<ValuePtr, ParseError> parseConstant(StringStream& stream) {
     GEODE_UNWRAP_INTO(auto first, stream.peek());
     switch (first) {
