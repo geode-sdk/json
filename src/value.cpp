@@ -19,6 +19,14 @@ Value::Value(double value) {
     m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
 
+Value::Value(intmax_t value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
+Value::Value(uintmax_t value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
 Value::Value(bool value) {
     m_impl = std::make_unique<ValueImpl>(Type::Bool, value);
 }
@@ -61,11 +69,11 @@ static Value& asNotConst(Value const& value) {
     return const_cast<Value&>(value);
 }
 
-Result<Value&, PenisError> Value::get(std::string_view key) {
+Result<Value&, GenericError> Value::get(std::string_view key) {
     return std::as_const(*this).get(key).map(asNotConst);
 }
 
-Result<Value const&, PenisError> Value::get(std::string_view key) const {
+Result<Value const&, GenericError> Value::get(std::string_view key) const {
     if (this->type() != Type::Object) {
         return Err("not an object");
     }
@@ -78,11 +86,11 @@ Result<Value const&, PenisError> Value::get(std::string_view key) const {
     return Err("key not found");
 }
 
-Result<Value&, PenisError> Value::get(size_t index) {
+Result<Value&, GenericError> Value::get(size_t index) {
     return std::as_const(*this).get(index).map(asNotConst);
 }
 
-Result<Value const&, PenisError> Value::get(size_t index) const {
+Result<Value const&, GenericError> Value::get(size_t index) const {
     if (this->type() != Type::Array) {
         return Err("not an array");
     }
@@ -126,6 +134,48 @@ Value const& Value::operator[](size_t index) const {
     });
 }
 
+void Value::set(std::string_view key, Value value) {
+    if (this->type() != Type::Object) {
+        return;
+    }
+    (void)this->get(key)
+        .inspect([&value](Value& v) {
+            v = std::move(value);
+        })
+        .inspectErr([&](auto&&) {
+            auto& arr = m_impl->asArray();
+            arr.emplace_back(std::move(value));
+            arr.back().m_impl->setKey(std::string(key));
+        });
+}
+
+bool Value::erase(std::string_view key) {
+    if (this->type() != Type::Object) {
+        return false;
+    }
+    auto& arr = m_impl->asArray();
+    for (auto it = arr.begin(); it != arr.end(); ++it) {
+        if (it->m_impl->key().value() == key) {
+            arr.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Value::contains(std::string_view key) const {
+    if (this->type() != Type::Object) {
+        return false;
+    }
+    auto const& arr = m_impl->asArray();
+    for (auto const& value : arr) {
+        if (value.m_impl->key().value() == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 Type Value::type() const {
     return m_impl->type();
 }
@@ -160,4 +210,39 @@ std::vector<Value>::const_iterator Value::end() const {
 
 std::optional<std::string> Value::getKey() const {
     return m_impl->key();
+}
+
+Result<bool, GenericError> Value::asBool() const {
+    if (this->type() != Type::Bool) {
+        return Err("not a bool");
+    }
+    return Ok(m_impl->asBool());
+}
+
+Result<std::string, GenericError> Value::asString() const {
+    if (this->type() != Type::String) {
+        return Err("not a string");
+    }
+    return Ok(m_impl->asString());
+}
+
+Result<intmax_t, GenericError> Value::asInt() const {
+    if (this->type() != Type::Number) {
+        return Err("not a number");
+    }
+    return Ok(m_impl->asNumber<intmax_t>());
+}
+
+Result<uintmax_t, GenericError> Value::asUInt() const {
+    if (this->type() != Type::Number) {
+        return Err("not a number");
+    }
+    return Ok(m_impl->asNumber<uintmax_t>());
+}
+
+Result<double, GenericError> Value::asDouble() const {
+    if (this->type() != Type::Number) {
+        return Err("not a number");
+    }
+    return Ok(m_impl->asNumber<double>());
 }

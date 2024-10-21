@@ -1,10 +1,16 @@
 #include "impl.hpp"
 
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstdio>
 #include <matjson3.hpp>
 #include <string>
+
+// macOS and android still lack floating point std::to_chars support
+#ifndef __cpp_lib_to_chars
+    #include "external/dragonbox.h"
+#endif
 
 using namespace matjson;
 using namespace geode;
@@ -36,21 +42,37 @@ void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
 }
 
-Result<void, PenisError> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
-    if (impl.isInteger()) {
-        out += std::to_string(impl.asInt());
+Result<void, GenericError> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
+    if (impl.isInt()) {
+        out += std::to_string(impl.asNumber<intmax_t>());
+    }
+    else if (impl.isUInt()) {
+        out += std::to_string(impl.asNumber<uintmax_t>());
     }
     else {
-        auto number = impl.asDouble();
+        auto number = impl.asNumber<double>();
         if (std::isnan(number)) return Err("number cant be nan");
         if (std::isinf(number)) return Err("number cant be infinity");
-        // TODO: not be lazy here
-        out += std::to_string(number);
+#ifndef __cpp_lib_to_chars
+        // use the dragonbox algorithm, code from
+        // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
+        std::array<char, dragonbox::DtoaMinBufferLength> buffer;
+        auto* end = dragonbox::Dtoa(buffer.data(), number);
+        out += std::string_view(buffer.data(), end - buffer.data());
+#else
+        std::array<char, 32> buffer;
+        auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
+        if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
+            // this should never happen, i think
+            return Err("number too large to convert to string");
+        }
+        out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
+#endif
     }
     return Ok();
 }
 
-Result<void, PenisError> dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+Result<void, GenericError> dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
         case Type::Null: {
@@ -121,7 +143,7 @@ Result<void, PenisError> dumpImpl(Value const& value, std::string& out, int inde
     return Ok();
 }
 
-Result<std::string, PenisError> Value::dump(int indentationSize) const {
+Result<std::string, GenericError> Value::dump(int indentationSize) const {
     std::string out;
     GEODE_UNWRAP(dumpImpl(*this, out, indentationSize, 0));
     return Ok(out);

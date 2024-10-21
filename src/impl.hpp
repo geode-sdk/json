@@ -4,10 +4,14 @@
 #include <matjson3.hpp>
 #include <variant>
 
+using std::intmax_t;
+using std::size_t;
+using std::uintmax_t;
+
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
-    std::variant<std::monostate, std::string, double, std::int64_t, bool, Array> m_value;
+    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, Array> m_value;
 
 public:
     template <class T>
@@ -43,18 +47,6 @@ public:
         return std::get<std::string>(m_value);
     }
 
-    double asDouble() const {
-        return std::get<double>(m_value);
-    }
-
-    std::int64_t asInt() const {
-        return std::get<std::int64_t>(m_value);
-    }
-
-    bool isInteger() const {
-        return std::holds_alternative<std::int64_t>(m_value);
-    }
-
     Array& asArray() {
         return std::get<Array>(m_value);
     }
@@ -65,6 +57,23 @@ public:
 
     auto const& getVariant() {
         return m_value;
+    }
+
+    bool isInt() const {
+        return std::holds_alternative<intmax_t>(m_value);
+    }
+
+    bool isUInt() const {
+        return std::holds_alternative<uintmax_t>(m_value);
+    }
+
+    template <class NumberType>
+    NumberType asNumber() const {
+        if (std::holds_alternative<intmax_t>(m_value))
+            return static_cast<NumberType>(std::get<intmax_t>(m_value));
+        else if (std::holds_alternative<uintmax_t>(m_value))
+            return static_cast<NumberType>(std::get<uintmax_t>(m_value));
+        else return static_cast<NumberType>(std::get<double>(m_value));
     }
 };
 

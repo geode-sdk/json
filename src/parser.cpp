@@ -175,6 +175,8 @@ Result<std::string, ParseError> parseString(StringStream& stream) noexcept {
 
 Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
     std::string buffer;
+    bool isFloating = false;
+    bool isNegative = false;
     auto const addToBuffer = [&]() -> Result<void, ParseError> {
         GEODE_UNWRAP_INTO(char c, stream.take());
         buffer.push_back(c);
@@ -182,6 +184,7 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
     };
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p == '-') {
+        isNegative = true;
         GEODE_UNWRAP(addToBuffer());
     }
     auto const takeDigits = [&]() -> Result<void, ParseError> {
@@ -213,6 +216,7 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
         // fraction
         GEODE_UNWRAP_INTO(p, stream.peek());
         if (p == '.') {
+            isFloating = true;
             GEODE_UNWRAP(addToBuffer());
 
             GEODE_UNWRAP(takeDigits());
@@ -222,6 +226,7 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
         // exponent
         GEODE_UNWRAP_INTO(p, stream.peek());
         if (p == 'e' || p == 'E') {
+            isFloating = true;
             GEODE_UNWRAP(addToBuffer());
 
             GEODE_UNWRAP_INTO(p, stream.peek());
@@ -231,17 +236,28 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
             GEODE_UNWRAP(takeDigits());
         }
     }
+    auto const fromCharsHelper = [&]<class T>() -> Result<ValuePtr, ParseError> {
+        T value;
+        if (auto result = std::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
+            result.ec != std::errc()) {
+            return Err("failed to parse number");
+        }
+        return Ok(std::make_unique<ValueImpl>(Type::Number, value));
+    };
+    if (isFloating) {
 #ifndef __cpp_lib_to_chars
-    // FIXME: std::stod is locale specific, might break on some machines
-    return Ok(std::make_unique<ValueImpl>(Type::Number, std::stod(buffer)));
+        // FIXME: std::stod is locale specific, might break on some machines
+        return Ok(std::make_unique<ValueImpl>(Type::Number, std::stod(buffer)));
 #else
-    double value;
-    if (auto result = std::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
-        result.ec != std::errc()) {
-        return Err("failed to parse number");
-    }
-    return Ok(std::make_unique<ValueImpl>(Type::Number, value));
+        return fromCharsHelper.operator()<double>();
 #endif
+    }
+    else if (isNegative) {
+        return fromCharsHelper.operator()<intmax_t>();
+    }
+    else {
+        return fromCharsHelper.operator()<uintmax_t>();
+    }
 }
 
 // parses a json element with optional whitespace around it

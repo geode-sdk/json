@@ -22,9 +22,9 @@ namespace matjson {
     class ValueIterator;
 
     using Array = std::vector<Value>;
-    // TODO: fix this
+    // TODO: change these?
     using ParseError = std::string_view;
-    using PenisError = std::string_view;
+    using GenericError = std::string_view;
 
     static constexpr int NO_INDENTATION = 0;
     static constexpr int TAB_INDENTATION = -1;
@@ -42,9 +42,17 @@ namespace matjson {
         Value(Array value);
         Value(std::nullptr_t);
         Value(double value);
-        // Value(std::int64_t value);
-        // Value(std::uint64_t value);
         Value(bool value);
+        explicit Value(std::intmax_t value);
+        explicit Value(std::uintmax_t value);
+
+        template <class T>
+            requires std::is_integral_v<T> && std::is_signed_v<T>
+        Value(T value) : Value(static_cast<std::intmax_t>(value)) {}
+
+        template <class T>
+            requires std::is_integral_v<T> && std::is_unsigned_v<T>
+        Value(T value) : Value(static_cast<std::uintmax_t>(value)) {}
 
         template <class T>
         // Prevents implicit conversion from pointer to bool
@@ -69,22 +77,22 @@ namespace matjson {
         /// Returns the value associated with the given key
         /// @param key Object key
         /// @return The value associated with the key, or an error if it does not exist.
-        geode::Result<Value&, PenisError> get(std::string_view key);
+        geode::Result<Value&, GenericError> get(std::string_view key);
 
         /// Returns the value associated with the given key
         /// @param key Object key
         /// @return The value associated with the key, or an error if it does not exist.
-        geode::Result<Value const&, PenisError> get(std::string_view key) const;
+        geode::Result<Value const&, GenericError> get(std::string_view key) const;
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value&, PenisError> get(size_t index);
+        geode::Result<Value&, GenericError> get(size_t index);
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value const&, PenisError> get(size_t index) const;
+        geode::Result<Value const&, GenericError> get(size_t index) const;
 
         /// Returns the value associated with the given key
         /// @param key Object key
@@ -136,7 +144,7 @@ namespace matjson {
         bool operator<(Value const&) const;
         bool operator>(Value const&) const;
 
-        geode::Result<std::string, PenisError> dump(int indentationSize = 4) const;
+        geode::Result<std::string, GenericError> dump(int indentationSize = 4) const;
 
         Type type() const;
 
@@ -170,6 +178,12 @@ namespace matjson {
             return this->type() == Type::Object;
         }
 
+        geode::Result<bool, GenericError> asBool() const;
+        geode::Result<std::string, GenericError> asString() const;
+        geode::Result<std::intmax_t, GenericError> asInt() const;
+        geode::Result<std::uintmax_t, GenericError> asUInt() const;
+        geode::Result<double, GenericError> asDouble() const;
+
         std::optional<std::string> getKey() const;
     };
 
@@ -202,6 +216,12 @@ namespace matjson {
         else if constexpr (Index == 1) {
             return std::forward<T>(value);
         }
+    }
+
+    // For fmtlib, lol
+    inline std::string format_as(matjson::Value const& value) {
+        // let the exception through
+        return value.dump().unwrap();
     }
 }
 
