@@ -5,13 +5,27 @@
 using namespace geode;
 
 Result<void, std::string> fancyMain(int argc, char const* argv[]) {
-    auto const json = GEODE_UNWRAP(matjson::parse("{\"hi\": 123}"));
+    auto const json = GEODE_UNWRAP(matjson::parse("{\"hi\": 123.51}"));
 
     auto& x = json["wow"]["crazy"];
     matjson::Value test = 123.1;
     test = std::move(x);
-    fmt::println("{}", GEODE_UNWRAP(json["hello"]["world"]["lol"].dump()));
-    fmt::println("{}", GEODE_UNWRAP(json.dump()));
+    fmt::println("{}", json["hello"]["world"]["lol"]);
+    fmt::println("{}", json);
+    fmt::println("{}", GEODE_UNWRAP(json["hi"].asInt()));
+    fmt::println("{}", GEODE_UNWRAP(json["hi"].asDouble()));
+
+    auto mjson = json;
+    mjson.set("hi", 123.5);
+    mjson.set("oworld", "uwu");
+    fmt::println("{}", mjson);
+    mjson = 123;
+
+    mjson = GEODE_UNWRAP(matjson::parse("{\"big number\": 123123123123123123}"));
+    fmt::println("{}", mjson);
+    fmt::println("{}", GEODE_UNWRAP(mjson["big number"].asInt()));
+    fmt::println("{}", GEODE_UNWRAP(mjson["big number"].asUInt()));
+    fmt::println("{}", GEODE_UNWRAP(mjson["big number"].asDouble()));
 
     if (argc > 1) {
         std::fstream file(argv[1]);
