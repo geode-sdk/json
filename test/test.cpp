@@ -1,10 +1,28 @@
 #include <fmt/core.h>
 #include <fstream>
+#include <matjson/reflect.hpp>
 #include <matjson3.hpp>
 
 using namespace geode;
 
+struct Bar {
+    int x = 10;
+};
+
+struct Foo {
+    std::string name;
+    int age;
+    double height;
+    Bar bar;
+};
+
 Result<void, std::string> fancyMain(int argc, char const* argv[]) {
+    {
+        Foo bar{"John", 25, 1.75};
+        matjson::Value json = bar;
+        fmt::println("{}", GEODE_UNWRAP(json.dump()));
+    }
+
     auto const json = GEODE_UNWRAP(matjson::parse("{\"hi\": 123.51}"));
 
     auto& x = json["wow"]["crazy"];
@@ -41,8 +59,15 @@ Result<void, std::string> fancyMain(int argc, char const* argv[]) {
         for (auto const& values : json) {
             fmt::println("{}", GEODE_UNWRAP(values.dump()));
         }
-    }
 
+        auto result = json.as<Foo>();
+        if (result) {
+            fmt::println("it worked!");
+        }
+        else {
+            fmt::println("it failed: {}", result.unwrapErr());
+        }
+    }
     return Ok();
 }
 

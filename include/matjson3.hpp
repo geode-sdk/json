@@ -3,7 +3,26 @@
 #include <Geode/Result.hpp>
 #include <istream>
 #include <memory>
+#include <type_traits>
 #include <vector>
+
+#ifdef MAT_JSON_DYNAMIC
+    #if defined(_WIN32) && !defined(__CYGWIN__)
+        #ifdef MAT_JSON_EXPORTING
+            #define MAT_JSON_DLL __declspec(dllexport)
+        #else
+            #define MAT_JSON_DLL __declspec(dllimport)
+        #endif
+    #else
+        #ifdef MAT_JSON_EXPORTING
+            #define MAT_JSON_DLL [[gnu::visibility("default")]]
+        #else
+            #define MAT_JSON_DLL
+        #endif
+    #endif
+#else
+    #define MAT_JSON_DLL
+#endif
 
 namespace matjson {
 
@@ -29,7 +48,19 @@ namespace matjson {
     static constexpr int NO_INDENTATION = 0;
     static constexpr int TAB_INDENTATION = -1;
 
-    class Value {
+    /// Specialize this class and implement the following methods (not all required)
+    /// static Result<T, _> fromJson(matjson::Value const&);
+    /// static matjson::Value toJson(T const&);
+    template <class T>
+    struct Serialize;
+
+    template <class T>
+    concept CanSerialize = requires(matjson::Value const& value, T t) {
+        { Serialize<std::remove_cvref_t<T>>::fromJson(value) };
+        { Serialize<std::remove_cvref_t<T>>::toJson(t) };
+    };
+
+    class MAT_JSON_DLL Value {
         std::unique_ptr<ValueImpl> m_impl;
         friend ValueImpl;
         Value(std::unique_ptr<ValueImpl>);
@@ -53,6 +84,10 @@ namespace matjson {
         template <class T>
             requires std::is_integral_v<T> && std::is_unsigned_v<T>
         Value(T value) : Value(static_cast<std::uintmax_t>(value)) {}
+
+        template <CanSerialize T>
+        Value(T&& value) :
+            Value(Serialize<std::remove_cvref_t<T>>::toJson(std::forward<T>(value))) {}
 
         template <class T>
         // Prevents implicit conversion from pointer to bool
@@ -144,6 +179,11 @@ namespace matjson {
         bool operator<(Value const&) const;
         bool operator>(Value const&) const;
 
+        /// Dumps the JSON value to a string, with a given indentation.
+        /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
+        /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
+        /// @param indentationSize The number of spaces to use for indentation
+        /// @return The JSON string or an error
         geode::Result<std::string, GenericError> dump(int indentationSize = 4) const;
 
         Type type() const;
@@ -185,6 +225,46 @@ namespace matjson {
         geode::Result<double, GenericError> asDouble() const;
 
         std::optional<std::string> getKey() const;
+
+        /// Converts the JSON value to a given type, possibly serializing to
+        /// a custom type via the Serialize specialization
+        /// @tparam T The type to convert to
+        /// @return The converted value or an error
+        template <class T>
+        decltype(auto) as() const {
+            if constexpr (std::is_same_v<T, bool>) {
+                return this->asBool();
+            }
+            else if constexpr (std::is_integral_v<T>) {
+                if constexpr (std::is_signed_v<T>) {
+                    return this->asInt().map([](std::intmax_t v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
+                else {
+                    return this->asUInt().map([](std::uintmax_t v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
+            }
+            else if constexpr (std::is_floating_point_v<T>) {
+                return this->asDouble().map([](double v) -> T {
+                    return static_cast<T>(v);
+                });
+            }
+            else if constexpr (CanSerialize<T>) {
+                return Serialize<std::remove_cvref_t<T>>::fromJson(*this);
+            }
+            else if constexpr (std::is_constructible_v<std::string, T>) {
+                return this->asString();
+            }
+            else if constexpr (std::is_same_v<T, Value>) {
+                return *this;
+            }
+            else {
+                static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
+            }
+        }
     };
 
     /// Parses JSON from a string
