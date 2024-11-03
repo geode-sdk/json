@@ -35,6 +35,10 @@ Value::Value(Array value) {
     m_impl = std::make_unique<ValueImpl>(Type::Array, value);
 }
 
+Value::Value(Array value, bool) {
+    m_impl = std::make_unique<ValueImpl>(Type::Object, value);
+}
+
 Value::Value(std::nullptr_t) {
     m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
 }
@@ -163,6 +167,20 @@ bool Value::erase(std::string_view key) {
     return false;
 }
 
+void Value::push(Value value) {
+    if (this->type() != Type::Array) {
+        return;
+    }
+    m_impl->asArray().emplace_back(std::move(value));
+}
+
+void Value::clear() {
+    if (this->type() != Type::Array && this->type() != Type::Object) {
+        return;
+    }
+    m_impl->asArray().clear();
+}
+
 bool Value::contains(std::string_view key) const {
     if (this->type() != Type::Object) {
         return false;
@@ -174,6 +192,13 @@ bool Value::contains(std::string_view key) const {
         }
     }
     return false;
+}
+
+size_t Value::size() const {
+    if (this->type() != Type::Array && this->type() != Type::Object) {
+        return 0;
+    }
+    return m_impl->asArray().size();
 }
 
 Type Value::type() const {
@@ -212,6 +237,10 @@ std::optional<std::string> Value::getKey() const {
     return m_impl->key();
 }
 
+void Value::setKey_(std::string_view key) {
+    return m_impl->setKey(std::string(key));
+}
+
 Result<bool, GenericError> Value::asBool() const {
     if (this->type() != Type::Bool) {
         return Err("not a bool");
@@ -245,4 +274,27 @@ Result<double, GenericError> Value::asDouble() const {
         return Err("not a number");
     }
     return Ok(m_impl->asNumber<double>());
+}
+
+Result<Array, GenericError> Value::asArray() const {
+    if (this->type() != Type::Array) {
+        return Err("not an array");
+    }
+    return Ok(m_impl->asArray());
+}
+
+bool Value::operator==(Value const& other) const {
+    if (this->type() != other.type()) {
+        return false;
+    }
+    switch (this->type()) {
+        case Type::Object:
+        case Type::Array: return m_impl->asArray() == other.m_impl->asArray();
+        case Type::String: return m_impl->asString() == other.m_impl->asString();
+        // TODO: fix
+        case Type::Number: return m_impl->asNumber<double>() == other.m_impl->asNumber<double>();
+        case Type::Bool: return m_impl->asBool() == other.m_impl->asBool();
+        case Type::Null: return true;
+    }
+    return false;
 }

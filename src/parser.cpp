@@ -1,6 +1,8 @@
 #include "impl.hpp"
 
 #include <charconv>
+#include <format>
+#include <iostream>
 #include <istream>
 #include <matjson3.hpp>
 #include <sstream>
@@ -38,13 +40,14 @@ struct StringStream {
 
     // takes until the next char is not whitespace
     void skipWhitespace() noexcept {
-        while (stream && isWhitespace(stream.peek())) {
+        while (stream.good() && isWhitespace(stream.peek())) {
             stream.get();
         }
     }
 
     explicit operator bool() const noexcept {
-        return bool(stream);
+        (void)stream.peek();
+        return stream.good();
     }
 };
 
@@ -190,7 +193,9 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
     auto const takeDigits = [&]() -> Result<void, ParseError> {
         bool once = false;
         while (stream) {
-            GEODE_UNWRAP_INTO(char c, stream.peek());
+            auto result = stream.peek();
+            if (!result) break;
+            char c = result.unwrap();
             if (c >= '0' && c <= '9') {
                 once = true;
                 GEODE_UNWRAP(addToBuffer());

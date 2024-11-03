@@ -38,7 +38,6 @@ namespace matjson {
     class ValueImpl;
 
     class Value;
-    class ValueIterator;
 
     using Array = std::vector<Value>;
     // TODO: change these?
@@ -60,10 +59,16 @@ namespace matjson {
         { Serialize<std::remove_cvref_t<T>>::toJson(t) };
     };
 
+    Value makeObject(std::initializer_list<std::pair<std::string, Value>>);
+
     class MAT_JSON_DLL Value {
         std::unique_ptr<ValueImpl> m_impl;
         friend ValueImpl;
         Value(std::unique_ptr<ValueImpl>);
+
+        friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
+        void setKey_(std::string_view key);
+        Value(Array, bool);
 
     public:
         /// Defaults to a JSON object, for convenience
@@ -163,6 +168,15 @@ namespace matjson {
         /// @note If this is not an object, nothing happens
         void set(std::string_view key, Value value);
 
+        /// Adds a value to the end of the array
+        /// @param value Value
+        /// @note If this is not an array, nothing happens
+        void push(Value value);
+
+        /// Clears the array/object, removing all entries
+        /// @note If this is not an array or object, nothing happens
+        void clear();
+
         /// Removes the value associated with the given key
         /// @param key Object key
         /// @return true if the key was removed, false otherwise
@@ -174,6 +188,11 @@ namespace matjson {
         /// @return true if the key exists, false otherwise
         /// @note If this is not an object, returns false
         bool contains(std::string_view key) const;
+
+        /// Returns the number of entries in the array/object.
+        /// @return The number of entries
+        /// @note If this is not an array or object, returns 0
+        std::size_t size() const;
 
         bool operator==(Value const&) const;
         bool operator<(Value const&) const;
@@ -223,6 +242,7 @@ namespace matjson {
         geode::Result<std::intmax_t, GenericError> asInt() const;
         geode::Result<std::uintmax_t, GenericError> asUInt() const;
         geode::Result<double, GenericError> asDouble() const;
+        geode::Result<Array, GenericError> asArray() const;
 
         std::optional<std::string> getKey() const;
 
@@ -259,7 +279,7 @@ namespace matjson {
                 return this->asString();
             }
             else if constexpr (std::is_same_v<T, Value>) {
-                return *this;
+                return geode::Result<Value, GenericError>(geode::Ok(*this));
             }
             else {
                 static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
@@ -296,6 +316,14 @@ namespace matjson {
         else if constexpr (Index == 1) {
             return std::forward<T>(value);
         }
+    }
+
+    inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
+        Array arr;
+        for (auto const& [key, value] : entries) {
+            arr.emplace_back(value).setKey_(key);
+        }
+        return Value(arr, true);
     }
 
     // For fmtlib, lol
