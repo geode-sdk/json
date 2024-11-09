@@ -7,7 +7,7 @@
 template <class T>
     requires(std::is_aggregate_v<T> && !std::is_array_v<T>)
 struct matjson::Serialize<T> {
-    static geode::Result<T, std::string_view> fromJson(matjson::Value const& json) {
+    static geode::Result<T> fromJson(matjson::Value const& json) {
         T value;
         std::optional<std::string_view> error;
         reflect::for_each<T>([&](auto N) {

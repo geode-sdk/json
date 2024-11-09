@@ -81,11 +81,11 @@ static Value& asNotConst(Value const& value) {
     return const_cast<Value&>(value);
 }
 
-Result<Value&, GenericError> Value::get(std::string_view key) {
+Result<Value&> Value::get(std::string_view key) {
     return std::as_const(*this).get(key).map(asNotConst);
 }
 
-Result<Value const&, GenericError> Value::get(std::string_view key) const {
+Result<Value const&> Value::get(std::string_view key) const {
     if (this->type() != Type::Object) {
         return Err("not an object");
     }
@@ -98,11 +98,11 @@ Result<Value const&, GenericError> Value::get(std::string_view key) const {
     return Err("key not found");
 }
 
-Result<Value&, GenericError> Value::get(size_t index) {
+Result<Value&> Value::get(size_t index) {
     return std::as_const(*this).get(index).map(asNotConst);
 }
 
-Result<Value const&, GenericError> Value::get(size_t index) const {
+Result<Value const&> Value::get(size_t index) const {
     if (this->type() != Type::Array) {
         return Err("not an array");
     }
@@ -249,42 +249,42 @@ void Value::setKey_(std::string_view key) {
     return m_impl->setKey(std::string(key));
 }
 
-Result<bool, GenericError> Value::asBool() const {
+Result<bool> Value::asBool() const {
     if (this->type() != Type::Bool) {
         return Err("not a bool");
     }
     return Ok(m_impl->asBool());
 }
 
-Result<std::string, GenericError> Value::asString() const {
+Result<std::string> Value::asString() const {
     if (this->type() != Type::String) {
         return Err("not a string");
     }
     return Ok(m_impl->asString());
 }
 
-Result<intmax_t, GenericError> Value::asInt() const {
+Result<intmax_t> Value::asInt() const {
     if (this->type() != Type::Number) {
         return Err("not a number");
     }
     return Ok(m_impl->asNumber<intmax_t>());
 }
 
-Result<uintmax_t, GenericError> Value::asUInt() const {
+Result<uintmax_t> Value::asUInt() const {
     if (this->type() != Type::Number) {
         return Err("not a number");
     }
     return Ok(m_impl->asNumber<uintmax_t>());
 }
 
-Result<double, GenericError> Value::asDouble() const {
+Result<double> Value::asDouble() const {
     if (this->type() != Type::Number) {
         return Err("not a number");
     }
     return Ok(m_impl->asNumber<double>());
 }
 
-Result<Array, GenericError> Value::asArray() const {
+Result<Array> Value::asArray() const {
     if (this->type() != Type::Array) {
         return Err("not an array");
     }

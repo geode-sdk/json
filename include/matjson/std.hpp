@@ -14,7 +14,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::optional<T>> {
-        static geode::Result<std::optional<T>, std::string_view> fromJson(Value const& value)
+        static geode::Result<std::optional<T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<T>(); }
         {
             if (!value.isNull()) {
@@ -37,7 +37,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::vector<T>> {
-        static geode::Result<std::vector<T>, std::string_view> fromJson(Value const& value)
+        static geode::Result<std::vector<T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<T>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
@@ -64,7 +64,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::unordered_set<T>> {
-        static geode::Result<std::unordered_set<T>, std::string_view> fromJson(Value const& value)
+        static geode::Result<std::unordered_set<T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
@@ -91,7 +91,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::set<T>> {
-        static geode::Result<std::set<T>, std::string_view> fromJson(Value const& value)
+        static geode::Result<std::set<T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
@@ -117,7 +117,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::map<std::string, T>> {
-        static geode::Result<std::map<std::string, T>, std::string_view> fromJson(Value const& value)
+        static geode::Result<std::map<std::string, T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isObject()) return geode::Err("not an object");
@@ -142,9 +142,7 @@ namespace matjson {
 
     template <class T>
     struct Serialize<std::unordered_map<std::string, T>> {
-        static geode::Result<std::unordered_map<std::string, T>, std::string_view> fromJson(
-            Value const& value
-        )
+        static geode::Result<std::unordered_map<std::string, T>> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isObject()) return geode::Err("not an object");

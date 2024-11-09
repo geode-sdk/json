@@ -42,7 +42,7 @@ void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
 }
 
-Result<void, GenericError> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
+Result<void> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     if (impl.isInt()) {
         out += std::to_string(impl.asNumber<intmax_t>());
     }
@@ -72,7 +72,7 @@ Result<void, GenericError> dumpJsonNumber(ValueImpl const& impl, std::string& ou
     return Ok();
 }
 
-Result<void, GenericError> dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+Result<void> dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
         case Type::Null: {
@@ -143,7 +143,7 @@ Result<void, GenericError> dumpImpl(Value const& value, std::string& out, int in
     return Ok();
 }
 
-Result<std::string, GenericError> Value::dump(int indentationSize) const {
+Result<std::string> Value::dump(int indentationSize) const {
     std::string out;
     GEODE_UNWRAP(dumpImpl(*this, out, indentationSize, 0));
     return Ok(out);

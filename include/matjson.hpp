@@ -40,9 +40,8 @@ namespace matjson {
     class Value;
 
     using Array = std::vector<Value>;
-    // TODO: change these?
-    using ParseError = std::string_view;
-    using GenericError = std::string_view;
+    // TODO: make a custom type?
+    using ParseError = std::string;
 
     static constexpr int NO_INDENTATION = 0;
     static constexpr int TAB_INDENTATION = -1;
@@ -127,22 +126,22 @@ namespace matjson {
         /// Returns the value associated with the given key
         /// @param key Object key
         /// @return The value associated with the key, or an error if it does not exist.
-        geode::Result<Value&, GenericError> get(std::string_view key);
+        geode::Result<Value&> get(std::string_view key);
 
         /// Returns the value associated with the given key
         /// @param key Object key
         /// @return The value associated with the key, or an error if it does not exist.
-        geode::Result<Value const&, GenericError> get(std::string_view key) const;
+        geode::Result<Value const&> get(std::string_view key) const;
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value&, GenericError> get(size_t index);
+        geode::Result<Value&> get(size_t index);
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value const&, GenericError> get(size_t index) const;
+        geode::Result<Value const&> get(size_t index) const;
 
         /// Returns the value associated with the given key
         /// @param key Object key
@@ -213,7 +212,7 @@ namespace matjson {
         /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
         /// @param indentationSize The number of spaces to use for indentation
         /// @return The JSON string or an error
-        geode::Result<std::string, GenericError> dump(int indentationSize = 4) const;
+        geode::Result<std::string> dump(int indentationSize = 4) const;
 
         Type type() const;
 
@@ -247,12 +246,12 @@ namespace matjson {
             return this->type() == Type::Object;
         }
 
-        geode::Result<bool, GenericError> asBool() const;
-        geode::Result<std::string, GenericError> asString() const;
-        geode::Result<std::intmax_t, GenericError> asInt() const;
-        geode::Result<std::uintmax_t, GenericError> asUInt() const;
-        geode::Result<double, GenericError> asDouble() const;
-        geode::Result<Array, GenericError> asArray() const;
+        geode::Result<bool> asBool() const;
+        geode::Result<std::string> asString() const;
+        geode::Result<std::intmax_t> asInt() const;
+        geode::Result<std::uintmax_t> asUInt() const;
+        geode::Result<double> asDouble() const;
+        geode::Result<Array> asArray() const;
 
         std::optional<std::string> getKey() const;
 
@@ -289,7 +288,7 @@ namespace matjson {
                 return this->asString();
             }
             else if constexpr (std::is_same_v<T, Value>) {
-                return geode::Result<Value, GenericError>(geode::Ok(*this));
+                return geode::Result<Value>(geode::Ok(*this));
             }
             else {
                 static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
