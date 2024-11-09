@@ -62,6 +62,11 @@ namespace matjson {
     template <class T>
     concept CanSerde = CanSerialize<T> && CanDeserialize<T>;
 
+    /// Creates a JSON object from a list of key-value pairs
+    /// Example:
+    /// > auto obj = makeObject({ {"key", 123}, {"key2", "value"} });
+    /// @param entries List of key-value pairs
+    /// @return The JSON object
     Value makeObject(std::initializer_list<std::pair<std::string, Value>>);
 
     class MAT_JSON_DLL Value {
@@ -106,12 +111,16 @@ namespace matjson {
         Value(Value&&);
         ~Value();
 
+        Value& operator=(Value);
+
+        bool operator==(Value const&) const;
+        bool operator<(Value const&) const;
+        bool operator>(Value const&) const;
+
         /// Create an empty JSON object
         static Value object();
         /// Create an empty JSON array
         static Value array();
-
-        Value& operator=(Value);
 
         /// Parses JSON from a string
         /// @param source The JSON string to parse
@@ -203,10 +212,6 @@ namespace matjson {
         /// @note If this is not an array or object, returns 0
         std::size_t size() const;
 
-        bool operator==(Value const&) const;
-        bool operator<(Value const&) const;
-        bool operator>(Value const&) const;
-
         /// Dumps the JSON value to a string, with a given indentation.
         /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
         /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
@@ -214,6 +219,7 @@ namespace matjson {
         /// @return The JSON string or an error
         geode::Result<std::string> dump(int indentationSize = 4) const;
 
+        /// Returns the type of the JSON value
         Type type() const;
 
         std::vector<Value>::iterator begin();
@@ -253,6 +259,9 @@ namespace matjson {
         geode::Result<double> asDouble() const;
         geode::Result<std::vector<Value>> asArray() const;
 
+        /// Returns the key of the object entry, if it is one.
+        /// If this is not an entry in an object, returns an empty optional.
+        /// @return The key of the object entry
         std::optional<std::string> getKey() const;
 
         /// Converts the JSON value to a given type, possibly serializing to
@@ -312,7 +321,7 @@ namespace matjson {
         return Value::parse(stream);
     }
 
-    // This is used for destructuring the value, useful for range for loops:
+    // This is used internally by C++ when destructuring the value, useful for range for loops:
     // > for (auto const& [key, value] : object) { ... }
     template <size_t Index, class T>
         requires requires { std::is_same_v<std::decay_t<T>, Value>; }
