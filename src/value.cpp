@@ -61,6 +61,13 @@ Value::Value(Value&& other) {
 
 Value::~Value() {}
 
+Value Value::object() {
+    return Value(std::make_unique<ValueImpl>(Type::Object, Array{}));
+}
+Value Value::array() {
+    return Value(std::make_unique<ValueImpl>(Type::Array, Array{}));
+}
+
 Value& Value::operator=(Value value) {
     if (CHECK_DUMMY_NULL) return *this;
     auto key = m_impl->key();

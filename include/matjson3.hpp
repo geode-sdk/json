@@ -107,6 +107,11 @@ namespace matjson {
         Value(Value&&);
         ~Value();
 
+        /// Create an empty JSON object
+        static Value object();
+        /// Create an empty JSON array
+        static Value array();
+
         Value& operator=(Value);
 
         /// Parses JSON from a string
