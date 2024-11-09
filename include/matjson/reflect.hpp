@@ -2,7 +2,7 @@
 
 #include "external/reflect"
 
-#include <matjson3.hpp>
+#include <matjson.hpp>
 
 template <class T>
     requires(std::is_aggregate_v<T> && !std::is_array_v<T>)

@@ -3,9 +3,9 @@
 #include <catch2/generators/catch_generators_all.hpp>
 #include <catch2/matchers/catch_matchers_all.hpp>
 #include <map>
+#include <matjson.hpp>
 #include <matjson/reflect.hpp>
 #include <matjson/std.hpp>
-#include <matjson3.hpp>
 #include <unordered_map>
 
 struct CoolStruct {

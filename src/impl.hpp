@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <matjson3.hpp>
+#include <matjson.hpp>
 #include <variant>
 
 using std::intmax_t;

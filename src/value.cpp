@@ -1,6 +1,6 @@
 #include "impl.hpp"
 
-#include <matjson3.hpp>
+#include <matjson.hpp>
 
 using namespace matjson;
 using namespace geode;
@@ -64,6 +64,7 @@ Value::~Value() {}
 Value Value::object() {
     return Value(std::make_unique<ValueImpl>(Type::Object, Array{}));
 }
+
 Value Value::array() {
     return Value(std::make_unique<ValueImpl>(Type::Array, Array{}));
 }
