@@ -55,9 +55,14 @@ namespace matjson {
 
     template <class T>
     concept CanSerialize = requires(matjson::Value const& value, T t) {
-        { Serialize<std::remove_cvref_t<T>>::fromJson(value) };
-        { Serialize<std::remove_cvref_t<T>>::toJson(t) };
+        { Serialize<std::remove_cvref_t<T>>::toJson(t) } -> std::same_as<matjson::Value>;
     };
+    template <class T>
+    concept CanDeserialize = requires(matjson::Value const& value, T t) {
+        { Serialize<std::remove_cvref_t<T>>::fromJson(value) };
+    };
+    template <class T>
+    concept CanSerde = CanSerialize<T> && CanDeserialize<T>;
 
     Value makeObject(std::initializer_list<std::pair<std::string, Value>>);
 
@@ -272,7 +277,7 @@ namespace matjson {
                     return static_cast<T>(v);
                 });
             }
-            else if constexpr (CanSerialize<T>) {
+            else if constexpr (CanDeserialize<T>) {
                 return Serialize<std::remove_cvref_t<T>>::fromJson(*this);
             }
             else if constexpr (std::is_constructible_v<std::string, T>) {
