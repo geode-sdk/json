@@ -53,7 +53,7 @@ namespace matjson {
         static Value toJson(std::vector<T> const& value)
             requires requires(T const& value) { Value(value); }
         {
-            Array res;
+            std::vector<Value> res;
             res.reserve(value.size());
             std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
                 return Value(value);
@@ -80,7 +80,7 @@ namespace matjson {
         static Value toJson(std::unordered_set<T> const& value)
             requires requires(T const& value) { Value(value); }
         {
-            Array res;
+            std::vector<Value> res;
             res.reserve(value.size());
             std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
                 return Value(value);
@@ -106,7 +106,7 @@ namespace matjson {
         static Value toJson(std::set<T> const& value)
             requires requires(T const& value) { Value(value); }
         {
-            Array res;
+            std::vector<Value> res;
             res.reserve(value.size());
             std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
                 return Value(value);

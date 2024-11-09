@@ -271,7 +271,7 @@ Result<ValuePtr, ParseError> parseElement(StringStream& stream) noexcept;
 Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
     GEODE_UNWRAP(stream.take());
     stream.skipWhitespace();
-    Array object;
+    std::vector<Value> object;
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p != '}') {
         while (true) {
@@ -308,7 +308,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
 Result<ValuePtr, ParseError> parseArray(StringStream& stream) noexcept {
     GEODE_UNWRAP(stream.take());
     stream.skipWhitespace();
-    Array array;
+    std::vector<Value> array;
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p != ']') {
         while (true) {

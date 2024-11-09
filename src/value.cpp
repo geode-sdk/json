@@ -6,7 +6,7 @@ using namespace matjson;
 using namespace geode;
 
 Value::Value() {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, Array{});
+    m_impl = std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{});
 }
 
 Value::Value(char const* str) : Value(std::string(str)) {}
@@ -31,11 +31,11 @@ Value::Value(bool value) {
     m_impl = std::make_unique<ValueImpl>(Type::Bool, value);
 }
 
-Value::Value(Array value) {
-    m_impl = std::make_unique<ValueImpl>(Type::Array, value);
+Value::Value(std::vector<Value> value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Array, std::move(value));
 }
 
-Value::Value(Array value, bool) {
+Value::Value(std::vector<Value> value, bool) {
     m_impl = std::make_unique<ValueImpl>(Type::Object, value);
 }
 
@@ -62,11 +62,11 @@ Value::Value(Value&& other) {
 Value::~Value() {}
 
 Value Value::object() {
-    return Value(std::make_unique<ValueImpl>(Type::Object, Array{}));
+    return Value(std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{}));
 }
 
 Value Value::array() {
-    return Value(std::make_unique<ValueImpl>(Type::Array, Array{}));
+    return Value(std::make_unique<ValueImpl>(Type::Array, std::vector<Value>{}));
 }
 
 Value& Value::operator=(Value value) {
@@ -284,7 +284,7 @@ Result<double> Value::asDouble() const {
     return Ok(m_impl->asNumber<double>());
 }
 
-Result<Array> Value::asArray() const {
+Result<std::vector<Value>> Value::asArray() const {
     if (this->type() != Type::Array) {
         return Err("not an array");
     }

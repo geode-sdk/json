@@ -11,7 +11,7 @@ using std::uintmax_t;
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
-    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, Array> m_value;
+    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>> m_value;
 
 public:
     template <class T>
@@ -47,8 +47,8 @@ public:
         return std::get<std::string>(m_value);
     }
 
-    Array& asArray() {
-        return std::get<Array>(m_value);
+    std::vector<Value>& asArray() {
+        return std::get<std::vector<Value>>(m_value);
     }
 
     static ValueImpl& fromValue(Value const& value) {

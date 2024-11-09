@@ -39,7 +39,6 @@ namespace matjson {
 
     class Value;
 
-    using Array = std::vector<Value>;
     // TODO: make a custom type?
     using ParseError = std::string;
 
@@ -72,14 +71,14 @@ namespace matjson {
 
         friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
         void setKey_(std::string_view key);
-        Value(Array, bool);
+        Value(std::vector<Value>, bool);
 
     public:
         /// Defaults to a JSON object, for convenience
         Value();
         Value(std::string_view value);
         Value(char const* value);
-        Value(Array value);
+        Value(std::vector<Value> value);
         Value(std::nullptr_t);
         Value(double value);
         Value(bool value);
@@ -251,7 +250,7 @@ namespace matjson {
         geode::Result<std::intmax_t> asInt() const;
         geode::Result<std::uintmax_t> asUInt() const;
         geode::Result<double> asDouble() const;
-        geode::Result<Array> asArray() const;
+        geode::Result<std::vector<Value>> asArray() const;
 
         std::optional<std::string> getKey() const;
 
@@ -328,11 +327,11 @@ namespace matjson {
     }
 
     inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
-        Array arr;
+        std::vector<Value> arr;
         for (auto const& [key, value] : entries) {
             arr.emplace_back(value).setKey_(key);
         }
-        return Value(arr, true);
+        return Value(std::move(arr), true);
     }
 
     // For fmtlib, lol
