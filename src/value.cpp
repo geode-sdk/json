@@ -11,6 +11,10 @@ Value::Value() {
 
 Value::Value(char const* str) : Value(std::string(str)) {}
 
+Value::Value(std::string value) {
+    m_impl = std::make_unique<ValueImpl>(Type::String, std::move(value));
+}
+
 Value::Value(std::string_view value) {
     m_impl = std::make_unique<ValueImpl>(Type::String, std::string(value));
 }

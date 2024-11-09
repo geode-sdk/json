@@ -335,3 +335,35 @@ TEST_CASE("Special characters") {
 
     REQUIRE(obj["control"].asString().unwrap() == "\b\f\n\r\t\x12 ");
 }
+
+TEST_CASE("Implicit ctors") {
+    matjson::Value value;
+
+    value["a"] = 123;
+    value["a"] = 123.0;
+    value["a"] = true;
+    value["a"] = false;
+    value["a"] = nullptr;
+    value["a"] = "Hello!";
+    std::string foo;
+    value["a"] = foo;
+    char const* bar = "hi";
+    value["a"] = bar;
+    std::string_view baz = "c";
+    value["a"] = baz;
+
+    struct Test {
+        operator std::string() {
+            return "hi";
+        }
+    } t;
+
+    value["a"] = t;
+
+    value["a"] = CoolStruct{
+        .name = "Hello!",
+        .value = 123,
+    };
+    CoolStruct b{};
+    value["a"] = b;
+}

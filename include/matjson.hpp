@@ -76,6 +76,7 @@ namespace matjson {
     public:
         /// Defaults to a JSON object, for convenience
         Value();
+        Value(std::string value);
         Value(std::string_view value);
         Value(char const* value);
         Value(std::vector<Value> value);
