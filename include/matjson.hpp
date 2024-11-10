@@ -46,7 +46,7 @@ namespace matjson {
     static constexpr int TAB_INDENTATION = -1;
 
     /// Specialize this class and implement the following methods (not all required)
-    /// static Result<T, _> fromJson(matjson::Value const&);
+    /// static Result<T> fromJson(matjson::Value const&);
     /// static matjson::Value toJson(T const&);
     template <class T>
     struct Serialize;
@@ -132,6 +132,13 @@ namespace matjson {
         /// @return The parsed JSON value or an error
         static geode::Result<Value, ParseError> parse(std::istream& source);
 
+        /// Dumps the JSON value to a string, with a given indentation.
+        /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
+        /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
+        /// @param indentationSize The number of spaces to use for indentation
+        /// @return The JSON string or an error
+        geode::Result<std::string> dump(int indentationSize = 4) const;
+
         /// Returns the value associated with the given key
         /// @param key Object key
         /// @return The value associated with the key, or an error if it does not exist.
@@ -212,15 +219,13 @@ namespace matjson {
         /// @note If this is not an array or object, returns 0
         std::size_t size() const;
 
-        /// Dumps the JSON value to a string, with a given indentation.
-        /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
-        /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
-        /// @param indentationSize The number of spaces to use for indentation
-        /// @return The JSON string or an error
-        geode::Result<std::string> dump(int indentationSize = 4) const;
-
         /// Returns the type of the JSON value
         Type type() const;
+
+        /// Returns the key of the object entry, if it is one.
+        /// If this is not an entry in an object, returns an empty optional.
+        /// @return The key of the object entry
+        std::optional<std::string> getKey() const;
 
         std::vector<Value>::iterator begin();
         std::vector<Value>::iterator end();
@@ -252,17 +257,37 @@ namespace matjson {
             return this->type() == Type::Object;
         }
 
+        /// Returns the number as a boolean, if this is a boolean.
+        /// If this is not a boolean, returns an error.
         geode::Result<bool> asBool() const;
-        geode::Result<std::string> asString() const;
-        geode::Result<std::intmax_t> asInt() const;
-        geode::Result<std::uintmax_t> asUInt() const;
-        geode::Result<double> asDouble() const;
-        geode::Result<std::vector<Value>> asArray() const;
 
-        /// Returns the key of the object entry, if it is one.
-        /// If this is not an entry in an object, returns an empty optional.
-        /// @return The key of the object entry
-        std::optional<std::string> getKey() const;
+        /// Returns the number as a string, if this is a string.
+        /// If this is not a string, returns an error.
+        geode::Result<std::string> asString() const;
+
+        /// Returns the number as a signed integer, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<std::intmax_t> asInt() const;
+
+        /// Returns the number as an unsigned integer, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<std::uintmax_t> asUInt() const;
+
+        /// Returns the number as a double, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<double> asDouble() const;
+
+        /// Returns a reference to the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value>&> asArray() &;
+
+        /// Returns the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value>> asArray() &&;
+
+        /// Returns a reference to the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value> const&> asArray() const&;
 
         /// Converts the JSON value to a given type, possibly serializing to
         /// a custom type via the Serialize specialization
@@ -296,8 +321,11 @@ namespace matjson {
             else if constexpr (std::is_constructible_v<std::string, T>) {
                 return this->asString();
             }
-            else if constexpr (std::is_same_v<T, Value>) {
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Value>) {
                 return geode::Result<Value>(geode::Ok(*this));
+            }
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::vector<Value>>) {
+                return this->asArray();
             }
             else {
                 static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");

@@ -17,7 +17,6 @@ struct Foo {
 };
 
 Result<void, std::string> fancyMain(int argc, char const* argv[]) {
-#if 0
     {
         Foo bar{"John", 25, 1.75};
         matjson::Value json = bar;
@@ -69,8 +68,6 @@ Result<void, std::string> fancyMain(int argc, char const* argv[]) {
             fmt::println("it failed: {}", result.unwrapErr());
         }
     }
-#endif
-    GEODE_UNWRAP(matjson::parse(""));
     return Ok();
 }
 

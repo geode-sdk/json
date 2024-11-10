@@ -165,20 +165,6 @@ void Value::set(std::string_view key, Value value) {
         });
 }
 
-bool Value::erase(std::string_view key) {
-    if (this->type() != Type::Object) {
-        return false;
-    }
-    auto& arr = m_impl->asArray();
-    for (auto it = arr.begin(); it != arr.end(); ++it) {
-        if (it->m_impl->key().value() == key) {
-            arr.erase(it);
-            return true;
-        }
-    }
-    return false;
-}
-
 void Value::push(Value value) {
     if (this->type() != Type::Array) {
         return;
@@ -191,6 +177,20 @@ void Value::clear() {
         return;
     }
     m_impl->asArray().clear();
+}
+
+bool Value::erase(std::string_view key) {
+    if (this->type() != Type::Object) {
+        return false;
+    }
+    auto& arr = m_impl->asArray();
+    for (auto it = arr.begin(); it != arr.end(); ++it) {
+        if (it->m_impl->key().value() == key) {
+            arr.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 bool Value::contains(std::string_view key) const {
@@ -288,7 +288,21 @@ Result<double> Value::asDouble() const {
     return Ok(m_impl->asNumber<double>());
 }
 
-Result<std::vector<Value>> Value::asArray() const {
+Result<std::vector<Value>&> Value::asArray() & {
+    if (this->type() != Type::Array) {
+        return Err("not an array");
+    }
+    return Ok(m_impl->asArray());
+}
+
+Result<std::vector<Value>> Value::asArray() && {
+    if (this->type() != Type::Array) {
+        return Err("not an array");
+    }
+    return Ok(std::move(m_impl->asArray()));
+}
+
+Result<std::vector<Value> const&> Value::asArray() const& {
     if (this->type() != Type::Array) {
         return Err("not an array");
     }
@@ -296,17 +310,13 @@ Result<std::vector<Value>> Value::asArray() const {
 }
 
 bool Value::operator==(Value const& other) const {
-    if (this->type() != other.type()) {
-        return false;
-    }
-    switch (this->type()) {
-        case Type::Object:
-        case Type::Array: return m_impl->asArray() == other.m_impl->asArray();
-        case Type::String: return m_impl->asString() == other.m_impl->asString();
-        // TODO: fix
-        case Type::Number: return m_impl->asNumber<double>() == other.m_impl->asNumber<double>();
-        case Type::Bool: return m_impl->asBool() == other.m_impl->asBool();
-        case Type::Null: return true;
-    }
-    return false;
+    return *m_impl == *other.m_impl;
+}
+
+bool Value::operator<(Value const& other) const {
+    return *m_impl < *other.m_impl;
+}
+
+bool Value::operator>(Value const& other) const {
+    return *m_impl > *other.m_impl;
 }
