@@ -42,7 +42,7 @@ void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
 }
 
-Result<void> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
+void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     if (impl.isInt()) {
         out += std::to_string(impl.asNumber<intmax_t>());
     }
@@ -51,8 +51,12 @@ Result<void> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     }
     else {
         auto number = impl.asNumber<double>();
-        if (std::isnan(number)) return Err("number cant be nan");
-        if (std::isinf(number)) return Err("number cant be infinity");
+        if (std::isnan(number) || std::isinf(number)) {
+            // JSON does not support inf/nan values, so copy what other libraries do
+            // which is to just turn them into null
+            out += "null"sv;
+            return;
+        }
 #ifndef __cpp_lib_to_chars
         // use the dragonbox algorithm, code from
         // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
@@ -63,16 +67,15 @@ Result<void> dumpJsonNumber(ValueImpl const& impl, std::string& out) {
         std::array<char, 32> buffer;
         auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
         if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
-            // this should never happen, i think
-            return Err("number too large to convert to string");
+            // this should never happen
+            std::abort();
         }
         out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
 #endif
     }
-    return Ok();
 }
 
-Result<void> dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
         case Type::Null: {
@@ -85,7 +88,7 @@ Result<void> dumpImpl(Value const& value, std::string& out, int indentation, int
             dumpJsonString(impl.asString(), out);
         } break;
         case Type::Number: {
-            GEODE_UNWRAP(dumpJsonNumber(impl, out));
+            dumpJsonNumber(impl, out);
         } break;
         case Type::Array: {
             out.push_back('[');
@@ -97,7 +100,7 @@ Result<void> dumpImpl(Value const& value, std::string& out, int indentation, int
                     if (indentation != NO_INDENTATION) out.push_back(' ');
                 }
                 first = false;
-                GEODE_UNWRAP(dumpImpl(value, out, indentation, depth));
+                dumpImpl(value, out, indentation, depth);
             }
             out.push_back(']');
         } break;
@@ -134,17 +137,16 @@ Result<void> dumpImpl(Value const& value, std::string& out, int indentation, int
                 out.push_back(':');
                 if (indentation != NO_INDENTATION) out.push_back(' ');
 
-                GEODE_UNWRAP(dumpImpl(value, out, indentation, depth + 1));
+                dumpImpl(value, out, indentation, depth + 1);
             }
             addLine(depth);
             out.push_back('}');
         }
     }
-    return Ok();
 }
 
-Result<std::string> Value::dump(int indentationSize) const {
+std::string Value::dump(int indentationSize) const {
     std::string out;
-    GEODE_UNWRAP(dumpImpl(*this, out, indentationSize, 0));
-    return Ok(out);
+    dumpImpl(*this, out, indentationSize, 0);
+    return out;
 }

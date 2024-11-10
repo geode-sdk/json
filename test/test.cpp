@@ -79,14 +79,12 @@ TEST_CASE("String serialization") {
     matjson::Value obj = foo;
 
     // key order is guaranteed to be the same
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"name\":\"wow!\\nmultiline\",\"value\":123}");
     REQUIRE(
-        obj.dump(matjson::NO_INDENTATION).unwrap() == "{\"name\":\"wow!\\nmultiline\",\"value\":123}"
-    );
-    REQUIRE(
-        obj.dump(matjson::TAB_INDENTATION).unwrap() ==
+        obj.dump(matjson::TAB_INDENTATION) ==
         "{\n\t\"name\": \"wow!\\nmultiline\",\n\t\"value\": 123\n}"
     );
-    REQUIRE(obj.dump(1).unwrap() == "{\n \"name\": \"wow!\\nmultiline\",\n \"value\": 123\n}");
+    REQUIRE(obj.dump(1) == "{\n \"name\": \"wow!\\nmultiline\",\n \"value\": 123\n}");
 }
 
 TEST_CASE("Keep insertion order") {
@@ -122,7 +120,7 @@ TEST_CASE("Parse") {
     auto obj = matjson::parse(COMPLEX_INPUT).unwrap();
 
     // risky test! requires we dump arrays the same way
-    REQUIRE(obj.dump(4).unwrap() == COMPLEX_INPUT);
+    REQUIRE(obj.dump(4) == COMPLEX_INPUT);
 
     REQUIRE(obj["nested"]["again"] != true);
     REQUIRE(obj["nested"]["nested"]["again"] == true);
@@ -133,10 +131,10 @@ TEST_CASE("Parse") {
 TEST_CASE("Dump/parse round trip") {
     auto obj = matjson::parse(COMPLEX_INPUT).unwrap();
 
-    REQUIRE(obj == matjson::parse(obj.dump().unwrap()).unwrap());
-    REQUIRE(obj == matjson::parse(obj.dump(matjson::NO_INDENTATION).unwrap()).unwrap());
-    REQUIRE(obj == matjson::parse(obj.dump(matjson::TAB_INDENTATION).unwrap()).unwrap());
-    REQUIRE(obj == matjson::parse(obj.dump(69).unwrap()).unwrap());
+    REQUIRE(obj == matjson::parse(obj.dump()).unwrap());
+    REQUIRE(obj == matjson::parse(obj.dump(matjson::NO_INDENTATION)).unwrap());
+    REQUIRE(obj == matjson::parse(obj.dump(matjson::TAB_INDENTATION)).unwrap());
+    REQUIRE(obj == matjson::parse(obj.dump(69)).unwrap());
 }
 
 TEST_CASE("STL serialization") {
@@ -196,16 +194,16 @@ TEST_CASE("Mutate object") {
     matjson::Value obj;
 
     obj.set("hello", 123);
-    REQUIRE(obj.dump(matjson::NO_INDENTATION).unwrap() == "{\"hello\":123}");
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123}");
 
     obj["hello!"] = 1234;
-    REQUIRE(obj.dump(matjson::NO_INDENTATION).unwrap() == "{\"hello\":123,\"hello!\":1234}");
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123,\"hello!\":1234}");
 
     obj.set("hello!", 4);
-    REQUIRE(obj.dump(matjson::NO_INDENTATION).unwrap() == "{\"hello\":123,\"hello!\":4}");
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123,\"hello!\":4}");
 
     obj.erase("hello!");
-    REQUIRE(obj.dump(matjson::NO_INDENTATION).unwrap() == "{\"hello\":123}");
+    REQUIRE(obj.dump(matjson::NO_INDENTATION) == "{\"hello\":123}");
 }
 
 TEST_CASE("Parse unit values") {
@@ -255,46 +253,40 @@ TEST_CASE("Invalid json") {
     // Very invalid
     using namespace std::string_view_literals;
     REQUIRE(matjson::parse("[\"hi\x00the\"]"sv).isErrAnd([](auto err) {
-        return err == "invalid string";
+        return std::string(err) == "invalid string";
     }));
 }
 
-TEST_CASE("Invalid dump") {
+TEST_CASE("Dump with inf and nan") {
     matjson::Value obj;
     using namespace std::string_literals;
-    // no throw
-    (void)obj.dump().unwrap();
 
     // json cant represent nan or infinity, sadly
 
     obj["Hi"] = NAN;
-    REQUIRE_THROWS(obj.dump().unwrap());
-
-    obj.clear();
-    (void)obj.dump().unwrap();
-
     obj["wow"] = INFINITY;
-    REQUIRE_THROWS(obj.dump().unwrap());
+    obj["wow2"] = -INFINITY;
+    REQUIRE(obj.dump(NO_INDENTATION) == "{\"Hi\":null,\"wow\":null,\"wow2\":null}"s);
 }
 
 TEST_CASE("Number precision") {
     matjson::Value obj = 0.1;
-    REQUIRE(obj.dump().unwrap() == "0.1");
+    REQUIRE(obj.dump() == "0.1");
 
     obj = 123;
-    REQUIRE(obj.dump().unwrap() == "123");
+    REQUIRE(obj.dump() == "123");
 
     obj = 123.23;
-    REQUIRE(obj.dump().unwrap() == "123.23");
+    REQUIRE(obj.dump() == "123.23");
 
     obj = 123456789;
-    REQUIRE(obj.dump().unwrap() == "123456789");
+    REQUIRE(obj.dump() == "123456789");
 
     obj = 1234567895017;
-    REQUIRE(obj.dump().unwrap() == "1234567895017");
+    REQUIRE(obj.dump() == "1234567895017");
 
     obj = 1234567895017.234;
-    REQUIRE(obj.dump().unwrap() == "1234567895017.234");
+    REQUIRE(obj.dump() == "1234567895017.234");
 }
 
 #if 0

@@ -136,8 +136,10 @@ namespace matjson {
         /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
         /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
         /// @param indentationSize The number of spaces to use for indentation
-        /// @return The JSON string or an error
-        geode::Result<std::string> dump(int indentationSize = 4) const;
+        /// @return The JSON string
+        /// @note Due to limitations in the JSON format, NaN and Infinity float values get converted to null.
+        ///       This behavior is the same as many other JSON libraries.
+        std::string dump(int indentationSize = 4) const;
 
         /// Returns the value associated with the given key
         /// @param key Object key
@@ -374,8 +376,7 @@ namespace matjson {
 
     // For fmtlib, lol
     inline std::string format_as(matjson::Value const& value) {
-        // let the exception through
-        return value.dump().unwrap();
+        return value.dump(matjson::NO_INDENTATION);
     }
 }
 
