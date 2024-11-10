@@ -394,6 +394,10 @@ namespace matjson {
     inline std::string format_as(matjson::Value const& value) {
         return value.dump(matjson::NO_INDENTATION);
     }
+
+    inline std::string format_as(matjson::ParseError const& value) {
+        return std::string(value);
+    }
 }
 
 // allow destructuring

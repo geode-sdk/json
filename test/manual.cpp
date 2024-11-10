@@ -71,6 +71,7 @@ Result<void> fancyMain(int argc, char const* argv[]) {
             fmt::println("it failed: {}", result.unwrapErr());
         }
     }
+    fmt::println("foo {}", matjson::parse("[").unwrapErr());
     return Ok();
 }
 
