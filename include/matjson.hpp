@@ -170,12 +170,12 @@ namespace matjson {
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value&> get(size_t index);
+        geode::Result<Value&> get(std::size_t index);
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index, or an error if the index is out of bounds.
-        geode::Result<Value const&> get(size_t index) const;
+        geode::Result<Value const&> get(std::size_t index) const;
 
         /// Returns the value associated with the given key
         /// @param key Object key
@@ -196,14 +196,14 @@ namespace matjson {
         /// @return The value associated with the index
         /// @note If the index is out of bounds, or this is not an array,
         ///       returns a null value
-        Value& operator[](size_t index);
+        Value& operator[](std::size_t index);
 
         /// Returns the value associated with the given index
         /// @param index Array index
         /// @return The value associated with the index
         /// @note If the index is out of bounds, or this is not an array,
         ///       returns a null value
-        Value const& operator[](size_t index) const;
+        Value const& operator[](std::size_t index) const;
 
         /// Sets the value associated with the given key
         /// @param key Object key
@@ -369,7 +369,7 @@ namespace matjson {
 
     // This is used internally by C++ when destructuring the value, useful for range for loops:
     // > for (auto const& [key, value] : object) { ... }
-    template <size_t Index, class T>
+    template <std::size_t Index, class T>
         requires requires { std::is_same_v<std::decay_t<T>, Value>; }
     decltype(auto) get(T&& value) {
         if constexpr (Index == 0) {
@@ -398,7 +398,7 @@ namespace matjson {
 
 // allow destructuring
 template <>
-struct std::tuple_size<matjson::Value> : std::integral_constant<size_t, 2> {};
+struct std::tuple_size<matjson::Value> : std::integral_constant<std::size_t, 2> {};
 
 template <>
 struct std::tuple_element<0, matjson::Value> {
