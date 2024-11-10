@@ -3,6 +3,11 @@ Include(FetchContent)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+CPMAddPackage("gh:fmtlib/fmt#11.0.2")
+
+add_executable(manual-testing manual.cpp)
+target_link_libraries(manual-testing PRIVATE mat-json fmt)
+
 FetchContent_Declare(
   Catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git

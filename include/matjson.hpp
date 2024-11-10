@@ -1,296 +1,411 @@
 #pragma once
 
-#include <string_view>
-#include <optional>
+#include <Geode/Result.hpp>
+#include <istream>
 #include <memory>
+#include <type_traits>
 #include <vector>
-#include <string>
-#include <stdexcept>
 
 #ifdef MAT_JSON_DYNAMIC
-	#if defined(_WIN32) && !defined(__CYGWIN__)
-		#ifdef MAT_JSON_EXPORTING
-			#define MAT_JSON_DLL __declspec(dllexport)
-		#else
-			#define MAT_JSON_DLL __declspec(dllimport)
-		#endif
-	#else
-		#ifdef MAT_JSON_EXPORTING
-			#define MAT_JSON_DLL [[gnu::visibility("default")]]
-		#else
-			#define MAT_JSON_DLL
-		#endif
-	#endif
+    #if defined(_WIN32) && !defined(__CYGWIN__)
+        #ifdef MAT_JSON_EXPORTING
+            #define MAT_JSON_DLL __declspec(dllexport)
+        #else
+            #define MAT_JSON_DLL __declspec(dllimport)
+        #endif
+    #else
+        #ifdef MAT_JSON_EXPORTING
+            #define MAT_JSON_DLL [[gnu::visibility("default")]]
+        #else
+            #define MAT_JSON_DLL
+        #endif
+    #endif
 #else
-	#define MAT_JSON_DLL
+    #define MAT_JSON_DLL
 #endif
 
 namespace matjson {
-	enum class Type {
-		Object,
-		Array,
-		String,
-		Number,
-		Bool,
-		Null,
-	};
 
-	class ValueImpl;
+    enum class Type {
+        Object,
+        Array,
+        String,
+        Number,
+        Bool,
+        Null,
+    };
 
-	class Value;
+    class ValueImpl;
 
-	using Array = std::vector<Value>;
+    class Value;
 
-	class Object;
-	class ObjectImpl;
+    struct ParseError {
+        std::string message;
+        int offset = 0, line = 0, column = 0;
 
-	using JsonException = std::runtime_error;
+        inline ParseError(std::string msg, int offset, int line, int column) :
+            message(std::move(msg)), offset(offset), line(line), column(column) {}
 
-	// Specialize this class and implement the following methods (not all required)
-	// static T from_json(const matjson::Value&);
-	// static matjson::Value to_json(const T&);
-	// static bool is_json(const matjson::Value&);
-	template <class T>
-	struct Serialize;
+        /// Returns a string representation of the error, useful for coercing into Result<T>
+        /// methods, where the error type is a string. *Do not* rely on the format of this string,
+        /// as it may change in the future. Instead, just access the fields directly.
+        inline operator std::string() const {
+            if (line) {
+                return this->message + " at line " + std::to_string(this->line) + ", column " +
+                    std::to_string(this->column);
+            }
+            return this->message;
+        }
+    };
 
-	static constexpr int NO_INDENTATION = 0;
-	static constexpr int TAB_INDENTATION = -1;
+    static constexpr int NO_INDENTATION = 0;
+    static constexpr int TAB_INDENTATION = -1;
 
-	class MAT_JSON_DLL Value final {
-		std::unique_ptr<ValueImpl> m_impl;
-		friend ValueImpl;
-		Value(std::unique_ptr<ValueImpl>);
-	public:
-		Value();
-		Value(std::string value);
-		Value(const char* value);
-		Value(double value);
-		Value(bool value);
-		Value(Object value);
-		Value(Array value);
-		Value(std::nullptr_t);
-		template <class T>
-		requires std::is_integral_v<T>
-		Value(T value) : Value(static_cast<double>(value)) {}
+    /// Specialize this class and implement the following methods (not all required)
+    /// static Result<T> fromJson(matjson::Value const&);
+    /// static matjson::Value toJson(T const&);
+    template <class T>
+    struct Serialize;
 
-		Value(const Value&);
-		Value(Value&&);
-		~Value();
+    template <class T>
+    concept CanSerialize = requires(matjson::Value const& value, T t) {
+        { Serialize<std::remove_cvref_t<T>>::toJson(t) } -> std::same_as<matjson::Value>;
+    };
+    template <class T>
+    concept CanDeserialize = requires(matjson::Value const& value, T t) {
+        { Serialize<std::remove_cvref_t<T>>::fromJson(value) };
+    };
+    template <class T>
+    concept CanSerde = CanSerialize<T> && CanDeserialize<T>;
 
-		Value& operator=(Value);
+    /// Creates a JSON object from a list of key-value pairs
+    /// Example:
+    /// > auto obj = makeObject({ {"key", 123}, {"key2", "value"} });
+    /// @param entries List of key-value pairs
+    /// @return The JSON object
+    Value makeObject(std::initializer_list<std::pair<std::string, Value>>);
 
-		template <class T>
-		requires requires(T value) { Serialize<std::decay_t<T>>::to_json(value); }
-		Value(T&& value) : Value(Serialize<std::decay_t<T>>::to_json(std::forward<T>(value))) {}
+    class MAT_JSON_DLL Value {
+        std::unique_ptr<ValueImpl> m_impl;
+        friend ValueImpl;
+        Value(std::unique_ptr<ValueImpl>);
 
-		template <class T>
-		// Prevents implicit conversion from pointer to bool
-		Value(T*) = delete;
+        friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
+        void setKey_(std::string_view key);
+        Value(std::vector<Value>, bool);
 
-		static Value from_str(std::string_view source);
-		static std::optional<Value> from_str(std::string_view source, std::string& error) noexcept;
+    public:
+        /// Defaults to a JSON object, for convenience
+        Value();
+        Value(std::string value);
+        Value(std::string_view value);
+        Value(char const* value);
+        Value(std::vector<Value> value);
+        Value(std::nullptr_t);
+        Value(double value);
+        Value(bool value);
+        explicit Value(std::intmax_t value);
+        explicit Value(std::uintmax_t value);
 
-		std::optional<std::reference_wrapper<Value>> try_get(std::string_view key);
-		std::optional<std::reference_wrapper<const Value>> try_get(std::string_view key) const;
-		std::optional<std::reference_wrapper<Value>> try_get(size_t index);
-		std::optional<std::reference_wrapper<const Value>> try_get(size_t index) const;
+        template <class T>
+            requires std::is_integral_v<T> && std::is_signed_v<T>
+        Value(T value) : Value(static_cast<std::intmax_t>(value)) {}
 
-		Value& operator[](std::string_view key);
-		const Value& operator[](std::string_view key) const;
-		Value& operator[](size_t index);
-		const Value& operator[](size_t index) const;
+        template <class T>
+            requires std::is_integral_v<T> && std::is_unsigned_v<T>
+        Value(T value) : Value(static_cast<std::uintmax_t>(value)) {}
 
-		void set(std::string_view key, Value value);
-		void erase(std::string_view key);
+        template <CanSerialize T>
+        Value(T&& value) :
+            Value(Serialize<std::remove_cvref_t<T>>::toJson(std::forward<T>(value))) {}
 
-		bool try_set(std::string_view key, Value value) noexcept;
-		bool try_erase(std::string_view key) noexcept;
+        template <class T>
+        // Prevents implicit conversion from pointer to bool
+        Value(T*) = delete;
 
-		Type type() const;
+        Value(Value const&);
+        Value(Value&&);
+        ~Value();
 
-		bool as_bool() const;
-		std::string as_string() const;
-		int as_int() const;
-		double as_double() const;
+        Value& operator=(Value);
 
-		const Object& as_object() const&;
-		Object& as_object() &;
-		Object as_object() &&;
-		
-		const Array& as_array() const&;
-		Array& as_array() &;
-		Array as_array() &&;
+        bool operator==(Value const&) const;
+        bool operator<(Value const&) const;
+        bool operator>(Value const&) const;
 
-		bool operator==(const Value&) const;
-		bool operator<(const Value&) const;
-		bool operator>(const Value&) const;
+        /// Create an empty JSON object
+        static Value object();
+        /// Create an empty JSON array
+        static Value array();
 
-		bool is_null() const { return type() == Type::Null; }
-		bool is_string() const { return type() == Type::String; }
-		bool is_number() const { return type() == Type::Number; }
-		bool is_bool() const { return type() == Type::Bool; }
-		bool is_array() const { return type() == Type::Array; }
-		bool is_object() const { return type() == Type::Object; }
+        /// Parses JSON from a string
+        /// @param source The JSON string to parse
+        /// @return The parsed JSON value or an error
+        static geode::Result<Value, ParseError> parse(std::string_view source);
 
-		bool contains(std::string_view key) const;
-		size_t count(std::string_view key) const;
+        /// Parses JSON from an input stream
+        /// @param source Stream to parse
+        /// @return The parsed JSON value or an error
+        static geode::Result<Value, ParseError> parse(std::istream& source);
 
-		// Use matjson::NO_INDENTATION for a compact json, matjson::TAB_INDENTATION for tabs,
-		// otherwise specifies the amount of spaces
-		std::string dump(int indentation_size = 4) const;
+        /// Dumps the JSON value to a string, with a given indentation.
+        /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
+        /// If the given indentation is matjson::TAB_INDENTATION, the json is indented with tabs.
+        /// @param indentationSize The number of spaces to use for indentation
+        /// @return The JSON string
+        /// @note Due to limitations in the JSON format, NaN and Infinity float values get converted to null.
+        ///       This behavior is the same as many other JSON libraries.
+        std::string dump(int indentationSize = 4) const;
 
-		template <class T>
-		decltype(auto) as() const& {
-			if constexpr (std::is_same_v<T, bool>) {
-				return as_bool();
-			} else if constexpr (std::is_integral_v<T>) {
-				return as_int();
-			} else if constexpr (std::is_floating_point_v<T>) {
-				return as_double();
-			} else if constexpr (requires(const Value& json) { Serialize<std::decay_t<T>>::from_json(json); }) {
-				return Serialize<std::decay_t<T>>::from_json(*this);
-			} else if constexpr (std::is_same_v<T, Array>) {
-				return as_array();
-			} else if constexpr (std::is_same_v<T, Object>) {
-				return as_object();
-			} else if constexpr (std::is_constructible_v<std::string, T>) {
-				return as_string();
-			} else if constexpr (std::is_same_v<T, Value>) {
-				return *this;
-			} else {
-				static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
-			}
-		}
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key, or an error if it does not exist.
+        geode::Result<Value&> get(std::string_view key);
 
-		template <class T>
-		decltype(auto) as() & {
-			if constexpr (std::is_same_v<T, Array>) {
-				return as_array();
-			} else if constexpr (std::is_same_v<T, Object>) {
-				return as_object();
-			} else {
-				return static_cast<const Value*>(this)->as<T>();
-			}
-		}
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key, or an error if it does not exist.
+        geode::Result<Value const&> get(std::string_view key) const;
 
-		template <class T>
-		decltype(auto) as() &&;
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index, or an error if the index is out of bounds.
+        geode::Result<Value&> get(std::size_t index);
 
-		template <class T>
-		bool is() const {
-			if constexpr (requires(const Value& json) { Serialize<std::decay_t<T>>::is_json(json); }) {
-				return Serialize<std::decay_t<T>>::is_json(*this);
-			}
-			if constexpr (std::is_same_v<T, Value>) {
-				return true;
-			}
-			switch (type()) {
-				case Type::Array: return std::is_same_v<T, Array>;
-				case Type::Object: return std::is_same_v<T, Object>;
-				case Type::String: return std::is_constructible_v<std::string, T>;
-				case Type::Number: return std::is_integral_v<T> || std::is_floating_point_v<T>;
-				case Type::Bool: return std::is_same_v<T, bool>;
-				case Type::Null: return std::is_same_v<T, std::nullptr_t>;
-			}
-			return false;
-		}
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index, or an error if the index is out of bounds.
+        geode::Result<Value const&> get(std::size_t index) const;
 
-		template <class T, class Key>
-		decltype(auto) get(Key&& key_or_index) const {
-			return this->operator[](std::forward<Key>(key_or_index)).template as<T>();
-		}
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key
+        /// @note If the key does not exist, it is inserted into the object.
+        ///       And if this is not an object, returns a null value
+        Value& operator[](std::string_view key);
 
-		template <class T, class Key>
-		decltype(auto) get(Key&& key_or_index) {
-			return this->operator[](std::forward<Key>(key_or_index)).template as<T>();
-		}
+        /// Returns the value associated with the given key
+        /// @param key Object key
+        /// @return The value associated with the key
+        /// @note If the key does not exist, or this is not an object,
+        ///       returns a null value
+        Value const& operator[](std::string_view key) const;
 
-		template <class T, class Key>
-		std::optional<T> try_get(Key&& key_or_index) const {
-			auto value = try_get(std::forward<Key>(key_or_index));
-			if (value && value->get().template is<T>()) {
-				return std::optional<T>(value->get().template as<T>());
-			}
-			return std::nullopt;
-		}
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index
+        /// @note If the index is out of bounds, or this is not an array,
+        ///       returns a null value
+        Value& operator[](std::size_t index);
 
-		template <class T, class Key>
-		std::optional<T> try_get(Key&& key_or_index) {
-			auto value = try_get(std::forward<Key>(key_or_index));
-			if (value && value->get().template is<T>()) {
-				return std::optional<T>(value->get().template as<T>());
-			}
-			return std::nullopt;
-		}
-	};
+        /// Returns the value associated with the given index
+        /// @param index Array index
+        /// @return The value associated with the index
+        /// @note If the index is out of bounds, or this is not an array,
+        ///       returns a null value
+        Value const& operator[](std::size_t index) const;
 
-	class MAT_JSON_DLL Object final {
-		friend ObjectImpl;
-		using value_type = std::pair<std::string, Value>;
-		// TODO: maybe dont use std::vector's iterator
-		using iterator = typename std::vector<value_type>::iterator;
-		using const_iterator = typename std::vector<value_type>::const_iterator;
-		std::unique_ptr<ObjectImpl> m_impl;
-	public:
-		Object();
-		Object(const Object&);
-		Object(Object&&);
-		Object(std::initializer_list<value_type> init);
-		~Object();
+        /// Sets the value associated with the given key
+        /// @param key Object key
+        /// @param value The value to set
+        /// @note If this is not an object, nothing happens
+        void set(std::string_view key, Value value);
 
-		Object& operator=(Object);
+        /// Adds a value to the end of the array
+        /// @param value Value
+        /// @note If this is not an array, nothing happens
+        void push(Value value);
 
-		size_t size() const;
-		bool empty() const;
+        /// Clears the array/object, removing all entries
+        /// @note If this is not an array or object, nothing happens
+        void clear();
 
-		Value& operator[](std::string_view key);
+        /// Removes the value associated with the given key
+        /// @param key Object key
+        /// @return true if the key was removed, false otherwise
+        /// @note If this is not an object, nothing happens and returns false
+        bool erase(std::string_view key);
 
-		iterator begin();
-		iterator end();
+        /// Checks if the key exists in the object
+        /// @param key Object key
+        /// @return true if the key exists, false otherwise
+        /// @note If this is not an object, returns false
+        bool contains(std::string_view key) const;
 
-		const_iterator begin() const;
-		const_iterator end() const;
+        /// Returns the number of entries in the array/object.
+        /// @return The number of entries
+        /// @note If this is not an array or object, returns 0
+        std::size_t size() const;
 
-		const_iterator cbegin() const;
-		const_iterator cend() const;
+        /// Returns the type of the JSON value
+        Type type() const;
 
-		iterator find(std::string_view key);
-		const_iterator find(std::string_view key) const;
+        /// Returns the key of the object entry, if it is one.
+        /// If this is not an entry in an object, returns an empty optional.
+        /// @return The key of the object entry
+        std::optional<std::string> getKey() const;
 
-		std::pair<iterator, bool> insert(const value_type& value);
-		iterator erase(const_iterator it);
-		size_t erase(std::string_view key);
-		void clear();
+        std::vector<Value>::iterator begin();
+        std::vector<Value>::iterator end();
 
-		size_t count(std::string_view key) const;
-		bool contains(std::string_view key) const;
+        std::vector<Value>::const_iterator begin() const;
+        std::vector<Value>::const_iterator end() const;
 
-		bool operator==(const Object& other) const;
-		bool operator<(const Object&) const;
-		bool operator>(const Object&) const;
-	};
+        bool isNull() const {
+            return this->type() == Type::Null;
+        }
 
-	template <class T>
-	decltype(auto) Value::as() && {
-		if constexpr (std::is_same_v<T, Array>) {
-			return std::move(*this).as_array();
-		} else if constexpr (std::is_same_v<T, Object>) {
-			return std::move(*this).as_object();
-		} else {
-			return static_cast<const Value*>(this)->as<T>();
-		}
-	}
+        bool isString() const {
+            return this->type() == Type::String;
+        }
 
-	inline Value parse(std::string_view source) {
-		return Value::from_str(source);
-	}
+        bool isNumber() const {
+            return this->type() == Type::Number;
+        }
 
-	inline std::optional<Value> parse(std::string_view source, std::string& error) noexcept {
-		return Value::from_str(source, error);
-	}
+        bool isBool() const {
+            return this->type() == Type::Bool;
+        }
+
+        bool isArray() const {
+            return this->type() == Type::Array;
+        }
+
+        bool isObject() const {
+            return this->type() == Type::Object;
+        }
+
+        /// Returns the number as a boolean, if this is a boolean.
+        /// If this is not a boolean, returns an error.
+        geode::Result<bool> asBool() const;
+
+        /// Returns the number as a string, if this is a string.
+        /// If this is not a string, returns an error.
+        geode::Result<std::string> asString() const;
+
+        /// Returns the number as a signed integer, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<std::intmax_t> asInt() const;
+
+        /// Returns the number as an unsigned integer, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<std::uintmax_t> asUInt() const;
+
+        /// Returns the number as a double, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<double> asDouble() const;
+
+        /// Returns a reference to the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value>&> asArray() &;
+
+        /// Returns the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value>> asArray() &&;
+
+        /// Returns a reference to the array, if this is an array.
+        /// If this is not an array, returns an error.
+        geode::Result<std::vector<Value> const&> asArray() const&;
+
+        /// Converts the JSON value to a given type, possibly serializing to
+        /// a custom type via the Serialize specialization
+        /// @tparam T The type to convert to
+        /// @return The converted value or an error
+        template <class T>
+        decltype(auto) as() const {
+            if constexpr (std::is_same_v<T, bool>) {
+                return this->asBool();
+            }
+            else if constexpr (std::is_integral_v<T>) {
+                if constexpr (std::is_signed_v<T>) {
+                    return this->asInt().map([](std::intmax_t v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
+                else {
+                    return this->asUInt().map([](std::uintmax_t v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
+            }
+            else if constexpr (std::is_floating_point_v<T>) {
+                return this->asDouble().map([](double v) -> T {
+                    return static_cast<T>(v);
+                });
+            }
+            else if constexpr (CanDeserialize<T>) {
+                return Serialize<std::remove_cvref_t<T>>::fromJson(*this);
+            }
+            else if constexpr (std::is_constructible_v<std::string, T>) {
+                return this->asString();
+            }
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Value>) {
+                return geode::Result<Value>(geode::Ok(*this));
+            }
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::vector<Value>>) {
+                return this->asArray();
+            }
+            else {
+                static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
+            }
+        }
+    };
+
+    /// Parses JSON from a string
+    /// @param source The JSON string to parse
+    /// @return The parsed JSON value or an error
+    /// @note Shorthand for Value::parse
+    inline geode::Result<Value, ParseError> parse(std::string_view source) {
+        return Value::parse(source);
+    }
+
+    /// Parses JSON from an input stream
+    /// @param source Stream to parse
+    /// @return The parsed JSON value or an error
+    /// @note Shorthand for Value::parse
+    inline geode::Result<Value, ParseError> parse(std::istream& stream) {
+        return Value::parse(stream);
+    }
+
+    // This is used internally by C++ when destructuring the value, useful for range for loops:
+    // > for (auto const& [key, value] : object) { ... }
+    template <std::size_t Index, class T>
+        requires requires { std::is_same_v<std::decay_t<T>, Value>; }
+    decltype(auto) get(T&& value) {
+        if constexpr (Index == 0) {
+            auto const opt = value.getKey();
+            if (!opt) return std::string();
+            return std::string(*opt);
+        }
+        else if constexpr (Index == 1) {
+            return std::forward<T>(value);
+        }
+    }
+
+    inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
+        std::vector<Value> arr;
+        for (auto const& [key, value] : entries) {
+            arr.emplace_back(value).setKey_(key);
+        }
+        return Value(std::move(arr), true);
+    }
+
+    // For fmtlib, lol
+    inline std::string format_as(matjson::Value const& value) {
+        return value.dump(matjson::NO_INDENTATION);
+    }
 }
 
+// allow destructuring
 template <>
-struct std::hash<matjson::Value> {
-	MAT_JSON_DLL std::size_t operator()(matjson::Value const& value) const;
+struct std::tuple_size<matjson::Value> : std::integral_constant<std::size_t, 2> {};
+
+template <>
+struct std::tuple_element<0, matjson::Value> {
+    using type = std::string;
+};
+
+template <>
+struct std::tuple_element<1, matjson::Value> {
+    using type = matjson::Value;
 };

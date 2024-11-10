@@ -26,6 +26,13 @@ jobs:
     # - run: sudo apt install ninja-build
     - uses: seanmiddleditch/gha-setup-ninja@v4
 
+    - name: Install GCC 12
+      if: matrix.config.os == 'ubuntu-latest'
+      run: |
+        sudo apt install -y gcc-12 g++-12
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
+
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -G Ninja
 
