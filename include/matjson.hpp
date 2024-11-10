@@ -39,8 +39,24 @@ namespace matjson {
 
     class Value;
 
-    // TODO: make a custom type?
-    using ParseError = std::string;
+    struct ParseError {
+        std::string message;
+        int offset = 0, line = 0, column = 0;
+
+        inline ParseError(std::string msg, int offset, int line, int column) :
+            message(std::move(msg)), offset(offset), line(line), column(column) {}
+
+        /// Returns a string representation of the error, useful for coercing into Result<T>
+        /// methods, where the error type is a string. *Do not* rely on the format of this string,
+        /// as it may change in the future. Instead, just access the fields directly.
+        inline operator std::string() const {
+            if (line) {
+                return this->message + " at line " + std::to_string(this->line) + ", column " +
+                    std::to_string(this->column);
+            }
+            return this->message;
+        }
+    };
 
     static constexpr int NO_INDENTATION = 0;
     static constexpr int TAB_INDENTATION = -1;

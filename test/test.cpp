@@ -252,8 +252,8 @@ TEST_CASE("Invalid json") {
 
     // Very invalid
     using namespace std::string_view_literals;
-    REQUIRE(matjson::parse("[\"hi\x00the\"]"sv).isErrAnd([](auto err) {
-        return std::string(err) == "invalid string";
+    REQUIRE(matjson::parse("[\"hi\x00the\"]"sv).isErrAnd([](auto const& err) {
+        return err.message == "invalid string";
     }));
 }
 
@@ -358,4 +358,15 @@ TEST_CASE("Implicit ctors") {
     };
     CoolStruct b{};
     value["a"] = b;
+}
+
+TEST_CASE("ParseError line numbers") {
+    auto err = matjson::parse("{").unwrapErr();
+    REQUIRE(err.line == 1);
+    REQUIRE(err.column == 2);
+
+    err = matjson::parse("{\n\"hello").unwrapErr();
+
+    REQUIRE(err.line == 2);
+    REQUIRE(err.column == 7);
 }

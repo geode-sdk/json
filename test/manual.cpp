@@ -16,7 +16,7 @@ struct Foo {
     Bar bar;
 };
 
-Result<void, std::string> fancyMain(int argc, char const* argv[]) {
+Result<void> fancyMain(int argc, char const* argv[]) {
     {
         Foo bar{"John", 25, 1.75};
         matjson::Value json = bar;

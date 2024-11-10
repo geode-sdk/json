@@ -1,7 +1,6 @@
 #include "impl.hpp"
 
 #include <charconv>
-#include <format>
 #include <iostream>
 #include <istream>
 #include <matjson.hpp>
@@ -18,30 +17,51 @@ bool isWhitespace(char c) {
 
 struct StringStream {
     std::istream& stream;
+    int line = 1, column = 1;
+
+    auto error(std::string_view msg) const noexcept {
+        return Err(ParseError(std::string(msg), stream.tellg(), line, column));
+    }
 
     Result<char, ParseError> take() noexcept {
         char ch;
-        if (!stream.get(ch)) return Err("eof");
+        if (!stream.get(ch)) return this->error("eof");
+        if (ch == '\n') {
+            ++line;
+            column = 1;
+        }
+        else {
+            ++column;
+        }
         return Ok(ch);
     }
 
     Result<std::string, ParseError> take(size_t n) {
+        // this is only used for constants so its fine to not count lines
         std::string buffer;
         buffer.resize(n);
-        if (!stream.read(buffer.data(), n)) return Err("eof");
+        if (!stream.read(buffer.data(), n)) return this->error("eof");
+        column += n;
         return Ok(buffer);
     }
 
     Result<char, ParseError> peek() noexcept {
         auto ch = stream.peek();
-        if (ch == EOF) return Err("eof");
+        if (ch == EOF) return this->error("eof");
         return Ok(ch);
     }
 
     // takes until the next char is not whitespace
     void skipWhitespace() noexcept {
         while (stream.good() && isWhitespace(stream.peek())) {
-            stream.get();
+            char ch = stream.get();
+            if (ch == '\n') {
+                ++line;
+                column = 1;
+            }
+            else {
+                ++column;
+            }
         }
     }
 
@@ -71,7 +91,7 @@ Result<ValuePtr, ParseError> parseConstant(StringStream& stream) {
         }
         default: break;
     }
-    return Err("invalid constant");
+    return stream.error("invalid constant");
 }
 
 void encodeUTF8(std::string& str, int32_t code_point) {
@@ -110,7 +130,7 @@ Result<std::string, ParseError> parseString(StringStream& stream) noexcept {
         // char is signed, so utf8 high bit bytes will be interpreted as negative,
         // could switch to unsigned char however just checking for c < 0 is easier
         if (c >= 0 && c < 0x20) {
-            return Err("invalid string");
+            return stream.error("invalid string");
         }
         // FIXME: standard should also ignore > 0x10FFFF, however that would require decoding utf-8
         if (c == '\\') {
@@ -132,7 +152,7 @@ Result<std::string, ParseError> parseString(StringStream& stream) noexcept {
                             return Ok(static_cast<uint32_t>(c - 'a' + 10));
                         else if (c >= 'A' && c <= 'F')
                             return Ok(static_cast<uint32_t>(c - 'A' + 10));
-                        return Err("invalid hex");
+                        return stream.error("invalid hex");
                     };
                     auto const takeUnicodeHex = [&]() -> Result<int32_t, ParseError> {
                         int32_t result = 0;
@@ -147,23 +167,23 @@ Result<std::string, ParseError> parseString(StringStream& stream) noexcept {
                     if (0xd800 <= value && value <= 0xdbff) {
                         GEODE_UNWRAP_INTO(char c, stream.take());
                         if (c != '\\') {
-                            return Err("expected backslash");
+                            return stream.error("expected backslash");
                         }
                         GEODE_UNWRAP_INTO(c, stream.take());
                         if (c != 'u') {
-                            return Err("expected u");
+                            return stream.error("expected u");
                         }
                         GEODE_UNWRAP_INTO(int32_t value2, takeUnicodeHex());
                         if (0xdc00 <= value2 && value2 <= 0xdfff) {
                             value = 0x10000 + ((value & 0x3ff) << 10) + (value2 & 0x3ff);
                         }
                         else {
-                            return Err("invalid surrogate pair");
+                            return stream.error("invalid surrogate pair");
                         }
                     }
                     encodeUTF8(str, value);
                 } break;
-                default: return Err("invalid backslash escape");
+                default: return stream.error("invalid backslash escape");
             }
         }
         else {
@@ -205,7 +225,7 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
             }
         }
         if (!once) {
-            return Err("expected digits");
+            return stream.error("expected digits");
         }
         return Ok();
     };
@@ -245,7 +265,7 @@ Result<ValuePtr, ParseError> parseNumber(StringStream& stream) noexcept {
         T value;
         if (auto result = std::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
             result.ec != std::errc()) {
-            return Err("failed to parse number");
+            return stream.error("failed to parse number");
         }
         return Ok(std::make_unique<ValueImpl>(Type::Number, value));
     };
@@ -276,12 +296,18 @@ Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
     if (p != '}') {
         while (true) {
             stream.skipWhitespace();
+            {
+                GEODE_UNWRAP_INTO(char c, stream.peek());
+                if (c != '"') {
+                    return stream.error("expected string");
+                }
+            }
             GEODE_UNWRAP_INTO(auto key, parseString(stream));
             stream.skipWhitespace();
 
             GEODE_UNWRAP_INTO(char s, stream.take());
             if (s != ':') {
-                return Err("expected colon");
+                return stream.error("expected colon");
             }
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
@@ -296,7 +322,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
                 break;
             }
             else {
-                return Err("expected member");
+                return stream.error("expected comma");
             }
         }
     }
@@ -323,7 +349,7 @@ Result<ValuePtr, ParseError> parseArray(StringStream& stream) noexcept {
                 break;
             }
             else {
-                return Err("expected value");
+                return stream.error("expected value");
             }
         }
     }
@@ -356,7 +382,7 @@ Result<ValuePtr, ParseError> parseValue(StringStream& stream) noexcept {
         case '7':
         case '8':
         case '9': return parseNumber(stream);
-        default: return Err("invalid value");
+        default: return stream.error("invalid value");
     }
 }
 
