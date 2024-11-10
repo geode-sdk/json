@@ -9,20 +9,30 @@ template <class T>
 struct matjson::Serialize<T> {
     static geode::Result<T> fromJson(matjson::Value const& json) {
         T value;
-        std::optional<std::string_view> error;
+        std::optional<std::string> error;
         reflect::for_each<T>([&](auto N) {
             if (error) return;
             auto& field = reflect::get<N>(value);
+            static constexpr auto fieldName = reflect::member_name<N>(value);
 
-            auto result =
-                json[reflect::member_name<N>(value)].template as<std::remove_cvref_t<decltype(field)>>(
-                );
-            if (result) {
-                field = result.unwrap();
+            if (!json.contains(fieldName)) {
+                error = "field `" + std::string(fieldName) + "` is missing";
+                return;
             }
-            else {
-                error = "field missing";
+            auto result = json[fieldName].template as<std::remove_cvref_t<decltype(field)>>();
+            if (!result) {
+                using ErrType = std::remove_cvref_t<decltype(result.unwrapErr())>;
+                if constexpr (requires(std::string s, ErrType e) { s + e; }) {
+                    // clang-format off
+                    error = "failed to convert field `" + std::string(fieldName) + "`: " + result.unwrapErr();
+                    // clang-format on
+                }
+                else {
+                    error = "failed to convert field `" + std::string(fieldName) + "`";
+                }
+                return;
             }
+            field = std::move(result).unwrap();
         });
         if (error) return geode::Err(*error);
         return geode::Ok(value);

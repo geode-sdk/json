@@ -21,6 +21,9 @@ Result<void, std::string> fancyMain(int argc, char const* argv[]) {
         Foo bar{"John", 25, 1.75};
         matjson::Value json = bar;
         fmt::println("{}", GEODE_UNWRAP(json.dump()));
+
+        auto value = GEODE_UNWRAP(GEODE_UNWRAP(matjson::parse("{\"x\": -123}")).as<Bar>());
+        fmt::println("{}", value.x);
     }
 
     auto const json = GEODE_UNWRAP(matjson::parse("{\"hi\": 123.51}"));
