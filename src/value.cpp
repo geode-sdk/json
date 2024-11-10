@@ -250,6 +250,7 @@ std::optional<std::string> Value::getKey() const {
 }
 
 void Value::setKey_(std::string_view key) {
+    if (CHECK_DUMMY_NULL) return;
     return m_impl->setKey(std::string(key));
 }
 
