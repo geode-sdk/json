@@ -14,7 +14,7 @@ if (NOT COMMAND CPMAddPackage)
     include(cmake/get_cpm.cmake)
 endif()
 
-CPMAddPackage("gh:geode-sdk/result@1.1.1")
+CPMAddPackage("gh:geode-sdk/result@1.2.0")
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
