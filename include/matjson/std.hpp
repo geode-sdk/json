@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <map>
 #include <matjson.hpp>
+#include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -51,6 +53,20 @@ namespace matjson {
         }
 
         static Value toJson(std::vector<T> const& value)
+            requires requires(T const& value) { Value(value); }
+        {
+            std::vector<Value> res;
+            res.reserve(value.size());
+            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                return Value(value);
+            });
+            return res;
+        }
+    };
+
+    template <class T>
+    struct Serialize<std::span<T>> {
+        static Value toJson(std::span<T const> value)
             requires requires(T const& value) { Value(value); }
         {
             std::vector<Value> res;
@@ -162,6 +178,52 @@ namespace matjson {
                 res.set(k, Value(v));
             }
             return res;
+        }
+    };
+
+    template <class T>
+    struct Serialize<std::shared_ptr<T>> {
+        static geode::Result<std::shared_ptr<T>> fromJson(Value const& value)
+            requires requires(Value const& value) { value.template as<T>(); }
+        {
+            if (!value.isNull()) {
+                return value.template as<T>().map([](T&& v) {
+                    return std::make_shared<T>(std::move(v));
+                });
+            }
+            return geode::Ok(nullptr);
+        }
+
+        static Value toJson(std::shared_ptr<T> const& value)
+            requires requires(T const& value) { Value(value); }
+        {
+            if (value) {
+                return Value(*value.get());
+            }
+            return Value(nullptr);
+        }
+    };
+
+    template <class T>
+    struct Serialize<std::unique_ptr<T>> {
+        static geode::Result<std::unique_ptr<T>> fromJson(Value const& value)
+            requires requires(Value const& value) { value.template as<T>(); }
+        {
+            if (!value.isNull()) {
+                return value.template as<T>().map([](T&& v) {
+                    return std::make_unique<T>(std::move(v));
+                });
+            }
+            return geode::Ok(nullptr);
+        }
+
+        static Value toJson(std::unique_ptr<T> const& value)
+            requires requires(T const& value) { Value(value); }
+        {
+            if (value) {
+                return Value(*value.get());
+            }
+            return Value(nullptr);
         }
     };
 }

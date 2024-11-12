@@ -183,6 +183,23 @@ TEST_CASE("STL serialization") {
 
     REQUIRE(arr[0].as<std::optional<int>>().unwrap().has_value());
     REQUIRE(!arr[123].as<std::optional<int>>().unwrap().has_value());
+
+    REQUIRE(*arr[0].as<std::shared_ptr<int>>().unwrap() == 1);
+    REQUIRE(*arr[0].as<std::unique_ptr<int>>().unwrap() == 1);
+
+    arr.push(nullptr);
+
+    REQUIRE(arr[5].as<std::shared_ptr<int>>().unwrap() == nullptr);
+    REQUIRE(arr[5].as<std::unique_ptr<int>>().unwrap() == nullptr);
+
+    REQUIRE(Value(std::shared_ptr<int>()).dump() == "null");
+    REQUIRE(Value(std::unique_ptr<int>()).dump() == "null");
+
+    std::vector<double> nums = {1.0, 3.4};
+    std::span<double> span = nums;
+
+    REQUIRE(Value(nums).dump(0) == "[1,3.4]");
+    REQUIRE(Value(span).dump(0) == "[1,3.4]");
 }
 
 TEST_CASE("UTF-8 strings") {
