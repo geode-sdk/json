@@ -282,6 +282,17 @@ int main() {
 
 There is built in support for serializing std containers by including an optional header:
 
+Supported classes (given T is serializable):
+* `std::vector<T>`
+* `std::span<T>`
+* `std::map<std::string, T>`
+* `std::unordered_map<std::string, T>`
+* `std::set<T>`
+* `std::unordered_set<T>`
+* `std::optional<T>` - `null` is prioritized as `std::nullopt`
+* `std::shared_ptr<T>` - same as above
+* `std::unique_ptr<T>` - same as above
+
 ```cpp
 #include <matjson/std.hpp>
 
