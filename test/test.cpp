@@ -417,3 +417,48 @@ TEST_CASE("Parse from stream") {
     stream = std::istringstream("     ");
     REQUIRE(matjson::parse(stream).isErr());
 }
+
+TEST_CASE("Value::get(..) and Value::get<T>(...)") {
+    auto obj = matjson::makeObject({
+        {"name", "Hello!"},
+        {"value", 123},
+        {"arr", std::vector{1, 2, 3, 4}},
+        {"nested", matjson::makeObject({{"name", "hello"}, {"value", 123}})},
+    });
+
+    REQUIRE(obj.get("name").unwrap().asString().unwrap() == "Hello!");
+    REQUIRE(obj.get("value").unwrap().asInt().unwrap() == 123);
+    REQUIRE(
+        obj.get("nested").unwrap().as<CoolStruct>().unwrap() ==
+        CoolStruct{.name = "hello", .value = 123}
+    );
+    REQUIRE(obj.get(123).isErr());
+    REQUIRE(obj["arr"].get(0).unwrap().asInt().unwrap() == 1);
+    REQUIRE(obj["arr"].get(123).isErr());
+
+    REQUIRE(obj.get<std::string>("name").unwrap() == "Hello!");
+    REQUIRE(obj.get<int>("value").unwrap() == 123);
+    REQUIRE(obj.get<CoolStruct>("nested").unwrap() == CoolStruct{.name = "hello", .value = 123});
+    REQUIRE(obj.get<int>(123).isErr());
+    REQUIRE(obj["arr"].get<int>(0).unwrap() == 1);
+    REQUIRE(obj["arr"].get<int>(123).isErr());
+
+    auto const constObj = obj;
+
+    REQUIRE(constObj.get("name").unwrap().asString().unwrap() == "Hello!");
+    REQUIRE(constObj.get("value").unwrap().asInt().unwrap() == 123);
+    REQUIRE(
+        constObj.get("nested").unwrap().as<CoolStruct>().unwrap() ==
+        CoolStruct{.name = "hello", .value = 123}
+    );
+    REQUIRE(constObj.get(123).isErr());
+    REQUIRE(constObj["arr"].get(0).unwrap().asInt().unwrap() == 1);
+    REQUIRE(constObj["arr"].get(123).isErr());
+
+    REQUIRE(constObj.get<std::string>("name").unwrap() == "Hello!");
+    REQUIRE(constObj.get<int>("value").unwrap() == 123);
+    REQUIRE(constObj.get<CoolStruct>("nested").unwrap() == CoolStruct{.name = "hello", .value = 123});
+    REQUIRE(constObj.get<int>(123).isErr());
+    REQUIRE(constObj["arr"].get<int>(0).unwrap() == 1);
+    REQUIRE(constObj["arr"].get<int>(123).isErr());
+}

@@ -349,6 +349,30 @@ namespace matjson {
                 static_assert(!std::is_same_v<T, T>, "no conversion found from matjson::Value to T");
             }
         }
+
+        /// Gets the value from a key/index, and converts it to T
+        /// @tparam T The type to convert to
+        /// @param keyOrIndex The key or index to get the value from
+        /// @return The converted value or an error
+        /// @note Shorthand for get(key).as<T>()
+        template <class T, class Key>
+        decltype(auto) get(Key&& keyOrIndex) {
+            return this->get(std::forward<Key>(keyOrIndex)).andThen([](Value& value) {
+                return value.as<T>();
+            });
+        }
+
+        /// Gets the value from a key/index, and converts it to T
+        /// @tparam T The type to convert to
+        /// @param keyOrIndex The key or index to get the value from
+        /// @return The converted value or an error
+        /// @note Shorthand for get(key).as<T>()
+        template <class T, class Key>
+        decltype(auto) get(Key&& keyOrIndex) const {
+            return this->get(std::forward<Key>(keyOrIndex)).andThen([](Value const& value) {
+                return value.as<T>();
+            });
+        }
     };
 
     /// Parses JSON from a string
@@ -368,6 +392,7 @@ namespace matjson {
     }
 
     /// Parses JSON from a string and tries to convert it to a given type
+    /// @tparam T The type to convert to
     /// @param source The JSON string to parse
     /// @return The parsed struct or an error
     /// @note Shorthand for Value::parse(...).as<T>()
@@ -378,6 +403,7 @@ namespace matjson {
     }
 
     /// Parses JSON from an input stream and tries to convert it to a given type
+    /// @tparam T The type to convert to
     /// @param source Stream to parse
     /// @return The parsed struct or an error
     /// @note Shorthand for Value::parse(...).as<T>()
