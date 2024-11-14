@@ -32,7 +32,7 @@ object.isString(); // false
     * [Parsing JSON](#parsing-json)
     * [Dumping JSON](#dumping-json)
     * [Accessing object properties](#accessing-object-properties)
-    * [Serializing custom types](#serialzing-custom-types)
+    * [Serializing custom types](#serializing-custom-types)
     * [Objects and arrays](#objects-and-arrays)
     * [Reflection](#reflection)
     * [Support for standard library types](#support-for-standard-library-types)
