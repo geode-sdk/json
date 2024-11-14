@@ -143,6 +143,19 @@ namespace matjson {
         /// @return The parsed JSON value or an error
         static geode::Result<Value, ParseError> parse(std::string_view source);
 
+        /// Parses JSON from a string and tries to convert it to a given type
+        /// @param source The JSON string to parse
+        /// @return The parsed struct or an error
+        template <CanDeserialize T>
+        inline static geode::Result<T> parseAs(std::string_view source) {
+            auto parsed = Value::parse(source);
+            if (!parsed) {
+                return geode::Err(static_cast<std::string>(parsed.unwrapErr()));
+            }
+
+            return Serialize<T>::fromJson(parsed.unwrap());
+        }
+
         /// Parses JSON from an input stream
         /// @param source Stream to parse
         /// @return The parsed JSON value or an error
@@ -357,6 +370,15 @@ namespace matjson {
     /// @note Shorthand for Value::parse
     inline geode::Result<Value, ParseError> parse(std::string_view source) {
         return Value::parse(source);
+    }
+
+    /// Parses JSON from a string and tries to convert it to a given type
+    /// @param source The JSON string to parse
+    /// @return The parsed struct or an error
+    /// @note Shorthand for Value::parse<T>
+    template <CanDeserialize T>
+    inline geode::Result<T> parseAs(std::string_view source) {
+        return Value::parseAs<T>(source);
     }
 
     /// Parses JSON from an input stream
