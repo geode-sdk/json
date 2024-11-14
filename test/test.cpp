@@ -387,3 +387,33 @@ TEST_CASE("ParseError line numbers") {
     REQUIRE(err.line == 2);
     REQUIRE(err.column == 7);
 }
+
+TEST_CASE("parseAs") {
+    auto res = matjson::parseAs<CoolStruct>(R"({"name": "Hello!","value": 123})");
+
+    REQUIRE(res.unwrap() == CoolStruct{.name = "Hello!", .value = 123});
+
+    REQUIRE(matjson::parseAs<int>("123").unwrap() == 123);
+}
+
+TEST_CASE("Parse from stream") {
+    std::istringstream stream(R"({"name": "Hello!","value": 123})");
+
+    auto res = matjson::parse(stream).unwrap();
+
+    REQUIRE(res == CoolStruct{.name = "Hello!", .value = 123});
+
+    stream = std::istringstream("[1,2,3]");
+    auto arr = matjson::parse(stream).unwrap();
+
+    REQUIRE(arr == std::vector{1, 2, 3});
+
+    stream = std::istringstream("[1, 2, 3");
+    REQUIRE(matjson::parse(stream).isErr());
+
+    stream = std::istringstream("");
+    REQUIRE(matjson::parse(stream).isErr());
+
+    stream = std::istringstream("     ");
+    REQUIRE(matjson::parse(stream).isErr());
+}
