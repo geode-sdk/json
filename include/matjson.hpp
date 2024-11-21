@@ -73,7 +73,7 @@ namespace matjson {
     };
     template <class T>
     concept CanDeserialize = requires(matjson::Value const& value, T t) {
-        { Serialize<std::remove_cvref_t<T>>::fromJson(value) } -> geode::impl::IsResult<>;
+        { Serialize<std::remove_cvref_t<T>>::fromJson(value) } -> geode::IsResult<>;
     };
     template <class T>
     concept CanSerde = CanSerialize<T> && CanDeserialize<T>;
