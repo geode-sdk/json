@@ -15,7 +15,7 @@ if (NOT COMMAND CPMAddPackage)
 endif()
 
 if (NOT TARGET GeodeResult)
-    CPMAddPackage("gh:geode-sdk/result@1.2.0")
+    CPMAddPackage("gh:geode-sdk/result@1.2.2")
 endif()
 
 # This option is only useful for Geode itself
