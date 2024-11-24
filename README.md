@@ -220,6 +220,10 @@ for (auto& value : obj) {
 obj.set("foo", true);
 
 matjson::Value arr({ 1, 2, "hello", true });
+arr[0]; // 1
+arr[2]; // "hello"
+arr[9]; // null
+arr.get(9); // Err("index out of bounds")
 
 for (auto& value : obj) {
     // values
