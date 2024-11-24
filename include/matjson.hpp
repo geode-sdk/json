@@ -51,7 +51,7 @@ namespace matjson {
         /// as it may change in the future. Instead, just access the fields directly.
         inline operator std::string() const {
             if (line) {
-                return this->message + " at line " + std::to_string(this->line) + ", column " +
+                return this->message + " at <input>:" + std::to_string(this->line) + ":" +
                     std::to_string(this->column);
             }
             return this->message;
