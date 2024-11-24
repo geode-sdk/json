@@ -17,6 +17,8 @@ struct CoolStruct {
 
 using namespace geode;
 using namespace matjson;
+using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 // template <>
 // struct matjson::Serialize<CoolStruct> {
@@ -276,7 +278,6 @@ TEST_CASE("Invalid json") {
 
 TEST_CASE("Dump with inf and nan") {
     matjson::Value obj;
-    using namespace std::string_literals;
 
     // json cant represent nan or infinity, sadly
 
@@ -461,4 +462,16 @@ TEST_CASE("Value::get(..) and Value::get<T>(...)") {
     REQUIRE(constObj.get<int>(123).isErr());
     REQUIRE(constObj["arr"].get<int>(0).unwrap() == 1);
     REQUIRE(constObj["arr"].get<int>(123).isErr());
+}
+
+TEST_CASE("Leftover characters") {
+    REQUIRE(matjson::parse("123").isOk());
+    REQUIRE(matjson::parse("123  ").isOk());
+    REQUIRE(matjson::parse("123!").isErr());
+    REQUIRE(matjson::parse("123  !").isErr());
+    REQUIRE(matjson::parse("123\x00"sv).isErr());
+    REQUIRE(matjson::parse("123  \x00"sv).isErr());
+    REQUIRE(matjson::parse("123@"sv).isErr());
+    REQUIRE(matjson::parse("1]"sv).isErr());
+    REQUIRE(matjson::parse("{}}"sv).isErr());
 }

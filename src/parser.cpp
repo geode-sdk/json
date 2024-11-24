@@ -393,10 +393,20 @@ Result<ValuePtr, ParseError> parseElement(StringStream& stream) noexcept {
     return Ok(std::move(value));
 }
 
+Result<ValuePtr, ParseError> parseRoot(StringStream& stream) noexcept {
+    GEODE_UNWRAP_INTO(auto value, parseElement(stream));
+    // if theres anything left in the stream that is not whitespace
+    // it should be considered an error
+    if (stream) {
+        return stream.error("expected eof");
+    }
+    return Ok(std::move(value));
+}
+
 Result<Value, ParseError> Value::parse(std::istream& sourceStream) {
     StringStream stream{sourceStream};
 
-    return parseElement(stream).map([](auto impl) {
+    return parseRoot(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));
     });
 }
