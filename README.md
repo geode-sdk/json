@@ -188,7 +188,7 @@ There is also experimental support for [reflection](#reflection).
 
 Objects and arrays have special methods, since they can be iterated and mutated.
 ```cpp
-// Does nothing is Value is not an object
+// Does nothing if Value is not an object
 void Value::set(std::string_view key, Value value);
 // Does nothing if Value is not an array
 void Value::push(Value value);
