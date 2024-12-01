@@ -96,7 +96,6 @@ std::string jsonStr = object.dump();
 std::string compact = object.dump(matjson::NO_INDENTATION);
 // {"x":10}
 ```
-`Value::dump` can also control indentation, see [Dumping to string](#dumping-to-string)
 
 ## Accessing object properties
 
