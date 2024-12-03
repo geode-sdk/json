@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 3.1.1)
+project(mat-json VERSION 3.1.2)
 
 set(SOURCE_FILES
     src/external/dragonbox.cpp
@@ -14,9 +14,7 @@ if (NOT COMMAND CPMAddPackage)
     include(cmake/get_cpm.cmake)
 endif()
 
-if (NOT TARGET GeodeResult)
-    CPMAddPackage("gh:geode-sdk/result@1.2.2")
-endif()
+CPMAddPackage("gh:geode-sdk/result@1.3.0")
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
