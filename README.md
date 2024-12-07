@@ -36,6 +36,8 @@ object.isString(); // false
     * [Objects and arrays](#objects-and-arrays)
     * [Reflection](#reflection)
     * [Support for standard library types](#support-for-standard-library-types)
+* [FAQ](#faq)
+    * [Why?](#why)
 
 # Usage
 
@@ -307,3 +309,12 @@ std::map<std::string, std::string> map = {
 matjson::Value jsonNums = nums;
 matjson::Value jsonMap = map;
 ```
+
+# FAQ
+
+## Why?
+
+This library was initially made due to concerns of the compile speeds of [nlohmann/json](https://github.com/nlohmann/json), which was included all over the place in geode. \
+Nowadays the main benefit of this library is integration with [Geode's Result type](https://github.com/geode-sdk/result).
+
+Mods can use whatever JSON library they want to, if matjson doesnt fit their needs
