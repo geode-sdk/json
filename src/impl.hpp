@@ -15,11 +15,11 @@ class matjson::ValueImpl {
 
 public:
     template <class T>
-    ValueImpl(Type type, T value) : m_type(type), m_value(value) {}
+    ValueImpl(Type type, T&& value) : m_type(type), m_value(std::forward<T>(value)) {}
 
     template <class T>
-    ValueImpl(Type type, std::string key, T value) :
-        m_type(type), m_key(std::move(key)), m_value(value) {}
+    ValueImpl(Type type, std::string key, T&& value) :
+        m_type(type), m_key(std::move(key)), m_value(std::forward<T>(value)) {}
 
     ValueImpl(ValueImpl const&) = default;
 

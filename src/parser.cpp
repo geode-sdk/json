@@ -312,7 +312,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
             value->setKey(key);
-            object.push_back(ValueImpl::asValue(std::move(value)));
+            object.emplace_back(std::move(ValueImpl::asValue(std::move(value))));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {
@@ -328,7 +328,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream& stream) noexcept {
     }
     // eat the }
     GEODE_UNWRAP(stream.take());
-    return Ok(std::make_unique<ValueImpl>(Type::Object, object));
+    return Ok(std::make_unique<ValueImpl>(Type::Object, std::move(object)));
 }
 
 Result<ValuePtr, ParseError> parseArray(StringStream& stream) noexcept {
@@ -339,7 +339,7 @@ Result<ValuePtr, ParseError> parseArray(StringStream& stream) noexcept {
     if (p != ']') {
         while (true) {
             GEODE_UNWRAP_INTO(auto element, parseElement(stream));
-            array.push_back(ValueImpl::asValue(std::move(element)));
+            array.emplace_back(std::move(ValueImpl::asValue(std::move(element))));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {
@@ -355,7 +355,7 @@ Result<ValuePtr, ParseError> parseArray(StringStream& stream) noexcept {
     }
     // eat the ]
     GEODE_UNWRAP(stream.take());
-    return Ok(std::make_unique<ValueImpl>(Type::Array, array));
+    return Ok(std::make_unique<ValueImpl>(Type::Array, std::move(array)));
 }
 
 Result<ValuePtr, ParseError> parseValue(StringStream& stream) noexcept {
