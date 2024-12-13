@@ -53,7 +53,7 @@ Value::Value(Value const& other) {
     m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
 }
 
-Value::Value(Value&& other) {
+Value::Value(Value&& other) noexcept {
     if (other.m_impl == getDummyNullValue()->m_impl) {
         m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
         return;

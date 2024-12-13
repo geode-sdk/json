@@ -124,7 +124,7 @@ namespace matjson {
         Value(T*) = delete;
 
         Value(Value const&);
-        Value(Value&&);
+        Value(Value&&) noexcept;
         ~Value();
 
         Value& operator=(Value);
