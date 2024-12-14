@@ -23,11 +23,7 @@ struct StringStream {
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
 
     auto error(std::string_view msg) const noexcept {
-        if constexpr (isStream) {
-            return Err(ParseError(std::string(msg), stream.tellg(), line, column));
-        } else {
-            return Err(ParseError(std::string(msg), offset, line, column));
-        }
+        return Err(ParseError(std::string(msg), offset, line, column));
     }
 
     Result<char, ParseError> take() noexcept {
@@ -38,8 +34,8 @@ struct StringStream {
             if (stream.empty()) return this->error("eof");
             ch = stream[0];
             stream = stream.substr(1);
-            ++offset;
         }
+        ++offset;
         if (ch == '\n') {
             ++line;
             column = 1;
@@ -57,6 +53,7 @@ struct StringStream {
             buffer.resize(n);
             if (!stream.read(buffer.data(), n)) return this->error("eof");
             column += n;
+            offset += n;
             return Ok(std::move(buffer));
         } else {
             if (stream.size() < n) return this->error("eof");
@@ -84,6 +81,7 @@ struct StringStream {
         if constexpr (isStream) {
             while (stream.good() && isWhitespace(stream.peek())) {
                 char ch = stream.get();
+                ++offset;
                 if (ch == '\n') {
                     ++line;
                     column = 1;

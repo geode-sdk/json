@@ -382,11 +382,27 @@ TEST_CASE("ParseError line numbers") {
     auto err = matjson::parse("{").unwrapErr();
     REQUIRE(err.line == 1);
     REQUIRE(err.column == 2);
+    REQUIRE(err.offset == 1);
 
     err = matjson::parse("{\n\"hello").unwrapErr();
 
     REQUIRE(err.line == 2);
     REQUIRE(err.column == 7);
+    REQUIRE(err.offset == 8);
+}
+
+TEST_CASE("ParseError line numbers from stream") {
+    std::istringstream stream("{");
+    auto err = matjson::parse(stream).unwrapErr();
+    REQUIRE(err.line == 1);
+    REQUIRE(err.column == 2);
+    REQUIRE(err.offset == 1);
+
+    stream = std::istringstream("{\n\"hello");
+    err = matjson::parse(stream).unwrapErr();
+    REQUIRE(err.line == 2);
+    REQUIRE(err.column == 7);
+    REQUIRE(err.offset == 8);
 }
 
 TEST_CASE("parseAs") {
@@ -401,6 +417,8 @@ TEST_CASE("Parse from stream") {
     std::istringstream stream(R"({"name": "Hello!","value": 123})");
 
     auto res = matjson::parse(stream).unwrap();
+    // parsing should consume the whole stream
+    REQUIRE(stream.eof());
 
     REQUIRE(res == CoolStruct{.name = "Hello!", .value = 123});
 
@@ -411,6 +429,10 @@ TEST_CASE("Parse from stream") {
 
     stream = std::istringstream("[1, 2, 3");
     REQUIRE(matjson::parse(stream).isErr());
+
+    stream = std::istringstream("[1, 2!, 3");
+    REQUIRE(matjson::parse(stream).isErr());
+    REQUIRE(!stream.eof());
 
     stream = std::istringstream("");
     REQUIRE(matjson::parse(stream).isErr());
