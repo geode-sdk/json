@@ -361,7 +361,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
             }
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
-            value->setKey(key);
+            value->setKey(std::move(key));
             object.emplace_back(std::move(ValueImpl::asValue(std::move(value))));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
