@@ -510,3 +510,32 @@ TEST_CASE("Leftover characters") {
     REQUIRE(matjson::parse("1]"sv).isErr());
     REQUIRE(matjson::parse("{}}"sv).isErr());
 }
+
+TEST_CASE("Value::operator= key behavior") {
+    matjson::Value obj;
+    matjson::Value foo = "hello";
+
+    obj = foo;
+    REQUIRE(obj == foo);
+    REQUIRE(obj.asString().unwrap() == "hello");
+
+    REQUIRE(!obj.getKey().has_value());
+    REQUIRE(!foo.getKey().has_value());
+
+    foo = matjson::makeObject({{"key", "value"}});
+    obj = matjson::makeObject({{"a", "b"}});
+
+    auto& key = foo["key"];
+    auto& a = obj["a"];
+
+    obj["a"] = foo["key"];
+
+    REQUIRE(key.getKey().value() == "key");
+    REQUIRE(a.getKey().value() == "a");
+
+    obj["a"] = std::move(foo["key"]);
+
+    REQUIRE(a.getKey().value() == "a");
+    // key was moved so it turns into null
+    REQUIRE(!key.getKey().has_value());
+}
