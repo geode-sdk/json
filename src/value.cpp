@@ -75,9 +75,8 @@ Value Value::array() {
 
 Value& Value::operator=(Value value) {
     if (CHECK_DUMMY_NULL) return *this;
-    auto key = m_impl->key();
     m_impl.swap(value.m_impl);
-    if (key) m_impl->setKey(*key);
+    if (auto& key = value.m_impl->key()) m_impl->setKey(std::move(*key));
     return *this;
 }
 

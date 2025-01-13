@@ -27,7 +27,11 @@ public:
         return m_type;
     }
 
-    std::optional<std::string> key() const {
+    std::optional<std::string> const& key() const {
+        return m_key;
+    }
+
+    std::optional<std::string>& key() {
         return m_key;
     }
 

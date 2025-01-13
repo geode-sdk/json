@@ -4,7 +4,6 @@
 #include <iostream>
 #include <istream>
 #include <matjson.hpp>
-#include <sstream>
 #include <string>
 
 using namespace matjson;
@@ -18,6 +17,7 @@ bool isWhitespace(char c) {
 template <class S = std::istream&>
 struct StringStream {
     S stream;
+    std::streambuf* buffer = nullptr;
     int line = 1, column = 1, offset = 0;
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
@@ -29,8 +29,14 @@ struct StringStream {
     Result<char, ParseError> take() noexcept {
         char ch;
         if constexpr (isStream) {
-            if (!stream.get(ch)) return this->error("eof");
-        } else {
+            auto res = buffer->sbumpc();
+            if (res == std::char_traits<char>::eof()) {
+                stream.clear(stream.rdstate() | std::ios::eofbit);
+                return this->error("eof");
+            }
+            ch = static_cast<char>(res);
+        }
+        else {
             if (stream.empty()) return this->error("eof");
             ch = stream[0];
             stream = stream.substr(1);
@@ -49,13 +55,19 @@ struct StringStream {
     Result<std::string, ParseError> take(size_t n) {
         // this is only used for constants so its fine to not count lines
         if constexpr (isStream) {
-            std::string buffer;
-            buffer.resize(n);
-            if (!stream.read(buffer.data(), n)) return this->error("eof");
+            std::string str;
+            str.resize(n);
+            auto res =
+                static_cast<std::size_t>(buffer->sgetn(str.data(), static_cast<std::streamsize>(n)));
+            if (res < n) {
+                stream.clear(stream.rdstate() | std::ios::eofbit);
+                return this->error("eof");
+            }
             column += n;
             offset += n;
-            return Ok(std::move(buffer));
-        } else {
+            return Ok(std::move(str));
+        }
+        else {
             if (stream.size() < n) return this->error("eof");
             std::string buffer = std::string(stream.substr(0, n));
             stream = stream.substr(n);
@@ -67,10 +79,14 @@ struct StringStream {
 
     Result<char, ParseError> peek() noexcept {
         if constexpr (isStream) {
-            auto ch = stream.peek();
-            if (ch == EOF) return this->error("eof");
-            return Ok(ch);
-        } else {
+            auto ret = buffer->sgetc();
+            if (ret == std::char_traits<char>::eof()) {
+                stream.clear(stream.rdstate() | std::ios::eofbit);
+                return this->error("eof");
+            }
+            return Ok(static_cast<char>(ret));
+        }
+        else {
             if (stream.empty()) return this->error("eof");
             return Ok(stream[0]);
         }
@@ -79,8 +95,15 @@ struct StringStream {
     // takes until the next char is not whitespace
     void skipWhitespace() noexcept {
         if constexpr (isStream) {
-            while (stream.good() && isWhitespace(stream.peek())) {
-                char ch = stream.get();
+            while (true) {
+                auto ret = buffer->sgetc();
+                if (ret == std::char_traits<char>::eof()) {
+                    stream.clear(stream.rdstate() | std::ios::eofbit);
+                    return;
+                }
+                char ch = static_cast<char>(ret);
+                if (!isWhitespace(ch)) return;
+                buffer->sbumpc();
                 ++offset;
                 if (ch == '\n') {
                     ++line;
@@ -90,7 +113,8 @@ struct StringStream {
                     ++column;
                 }
             }
-        } else {
+        }
+        else {
             while (!stream.empty() && isWhitespace(stream[0])) {
                 char ch = stream[0];
                 stream = stream.substr(1);
@@ -108,9 +132,9 @@ struct StringStream {
 
     explicit operator bool() const noexcept {
         if constexpr (isStream) {
-            (void)stream.peek();
-            return stream.good();
-        } else {
+            return buffer->sgetc() != std::char_traits<char>::eof();
+        }
+        else {
             return !stream.empty();
         }
     }
@@ -361,7 +385,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
             }
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
-            value->setKey(key);
+            value->setKey(std::move(key));
             object.emplace_back(std::move(ValueImpl::asValue(std::move(value))));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
@@ -458,7 +482,7 @@ Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) noexcept {
 }
 
 Result<Value, ParseError> Value::parse(std::istream& sourceStream) {
-    StringStream<std::istream&> stream{sourceStream};
+    StringStream<std::istream&> stream{sourceStream, sourceStream.rdbuf()};
 
     return parseRoot(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));
@@ -466,7 +490,7 @@ Result<Value, ParseError> Value::parse(std::istream& sourceStream) {
 }
 
 Result<Value, ParseError> Value::parse(std::string_view source) {
-    StringStream<std::string_view> stream{source};
+    StringStream<std::string_view> stream{source, nullptr};
 
     return parseRoot(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));
