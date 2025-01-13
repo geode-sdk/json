@@ -67,6 +67,10 @@ public:
         return m_value;
     }
 
+    bool isDouble() const {
+        return std::holds_alternative<double>(m_value);
+    }
+
     bool isInt() const {
         return std::holds_alternative<intmax_t>(m_value);
     }

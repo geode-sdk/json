@@ -539,3 +539,36 @@ TEST_CASE("Value::operator= key behavior") {
     // key was moved so it turns into null
     REQUIRE(!key.getKey().has_value());
 }
+
+TEST_CASE("Value isExactlyT") {
+    matjson::Value value = 123ull;
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+
+    value = 123.0;
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(value.isExactlyDouble());
+
+    value = -10;
+    REQUIRE(value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+
+    value = "hello";
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+
+    // parsed ints are stored as unsigned unless they are negative
+    value = matjson::parse("123").unwrap();
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+
+    value = matjson::parse("-123").unwrap();
+    REQUIRE(value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+}

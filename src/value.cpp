@@ -320,3 +320,18 @@ bool Value::operator<(Value const& other) const {
 bool Value::operator>(Value const& other) const {
     return *m_impl > *other.m_impl;
 }
+
+bool Value::isExactlyDouble() const {
+    if (!this->isNumber()) return false;
+    return m_impl->isDouble();
+}
+
+bool Value::isExactlyInt() const {
+    if (!this->isNumber()) return false;
+    return m_impl->isInt();
+}
+
+bool Value::isExactlyUInt() const {
+    if (!this->isNumber()) return false;
+    return m_impl->isUInt();
+}

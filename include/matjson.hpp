@@ -275,6 +275,21 @@ namespace matjson {
             return this->type() == Type::Object;
         }
 
+        /// Returns true if the number stored is a double, false otherwise.
+        /// This depends on how the value is stored internally.
+        /// @note This is useful for checking if the number is an integer or a double.
+        bool isExactlyDouble() const;
+
+        /// Returns true if the number stored is a signed integer, false otherwise.
+        /// This depends on how the value is stored internally.
+        /// @note This is useful for checking if the number is an integer or a double.
+        bool isExactlyInt() const;
+
+        /// Returns true if the number stored is an unsigned integer, false otherwise.
+        /// This depends on how the value is stored internally.
+        /// @note This is useful for checking if the number is an integer or a double.
+        bool isExactlyUInt() const;
+
         /// Returns the number as a boolean, if this is a boolean.
         /// If this is not a boolean, returns an error.
         geode::Result<bool> asBool() const;
