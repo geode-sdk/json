@@ -4,7 +4,6 @@
 #include <iostream>
 #include <istream>
 #include <matjson.hpp>
-#include <sstream>
 #include <string>
 
 using namespace matjson;
@@ -36,7 +35,8 @@ struct StringStream {
                 return this->error("eof");
             }
             ch = static_cast<char>(res);
-        } else {
+        }
+        else {
             if (stream.empty()) return this->error("eof");
             ch = stream[0];
             stream = stream.substr(1);
@@ -57,7 +57,8 @@ struct StringStream {
         if constexpr (isStream) {
             std::string str;
             str.resize(n);
-            auto res = static_cast<std::size_t>(buffer->sgetn(str.data(), static_cast<std::streamsize>(n)));
+            auto res =
+                static_cast<std::size_t>(buffer->sgetn(str.data(), static_cast<std::streamsize>(n)));
             if (res < n) {
                 stream.clear(stream.rdstate() | std::ios::eofbit);
                 return this->error("eof");
@@ -65,7 +66,8 @@ struct StringStream {
             column += n;
             offset += n;
             return Ok(std::move(str));
-        } else {
+        }
+        else {
             if (stream.size() < n) return this->error("eof");
             std::string buffer = std::string(stream.substr(0, n));
             stream = stream.substr(n);
@@ -83,7 +85,8 @@ struct StringStream {
                 return this->error("eof");
             }
             return Ok(static_cast<char>(ret));
-        } else {
+        }
+        else {
             if (stream.empty()) return this->error("eof");
             return Ok(stream[0]);
         }
@@ -92,17 +95,6 @@ struct StringStream {
     // takes until the next char is not whitespace
     void skipWhitespace() noexcept {
         if constexpr (isStream) {
-            // while (stream.good() && isWhitespace(stream.peek())) {
-            //     char ch = stream.get();
-            //     ++offset;
-            //     if (ch == '\n') {
-            //         ++line;
-            //         column = 1;
-            //     }
-            //     else {
-            //         ++column;
-            //     }
-            // }
             while (true) {
                 auto ret = buffer->sgetc();
                 if (ret == std::char_traits<char>::eof()) {
@@ -121,7 +113,8 @@ struct StringStream {
                     ++column;
                 }
             }
-        } else {
+        }
+        else {
             while (!stream.empty() && isWhitespace(stream[0])) {
                 char ch = stream[0];
                 stream = stream.substr(1);
@@ -139,10 +132,9 @@ struct StringStream {
 
     explicit operator bool() const noexcept {
         if constexpr (isStream) {
-            // (void)stream.peek();
-            // return stream.good();
             return buffer->sgetc() != std::char_traits<char>::eof();
-        } else {
+        }
+        else {
             return !stream.empty();
         }
     }

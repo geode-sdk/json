@@ -436,9 +436,22 @@ TEST_CASE("Parse from stream") {
 
     stream = std::istringstream("");
     REQUIRE(matjson::parse(stream).isErr());
+    REQUIRE(stream.eof());
 
     stream = std::istringstream("     ");
     REQUIRE(matjson::parse(stream).isErr());
+    REQUIRE(stream.eof());
+
+    stream = std::istringstream("[1, 2, 3]   ");
+    REQUIRE(matjson::parse(stream).isOk());
+
+    stream = std::istringstream("[1, 2, 3]  a");
+    REQUIRE(matjson::parse(stream).isErr());
+    REQUIRE(!stream.eof());
+
+    stream = std::istringstream("[1, 2, 3]  a  b");
+    REQUIRE(matjson::parse(stream).isErr());
+    REQUIRE(!stream.eof());
 }
 
 TEST_CASE("Value::get(..) and Value::get<T>(...)") {
