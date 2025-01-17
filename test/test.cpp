@@ -572,3 +572,27 @@ TEST_CASE("Value isExactlyT") {
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
 }
+
+TEST_CASE("Value::erase") {
+    matjson::Value obj;
+    obj["a"] = 1;
+    obj["b"] = 2;
+    obj["c"] = 3;
+
+    REQUIRE(obj.erase("b"));
+    REQUIRE(obj.dump(0) == "{\"a\":1,\"c\":3}");
+
+    REQUIRE(!obj.erase("b"));
+    REQUIRE(obj.dump(0) == "{\"a\":1,\"c\":3}");
+
+    REQUIRE(obj.erase("a"));
+    REQUIRE(obj.dump(0) == "{\"c\":3}");
+
+    REQUIRE(obj.erase("c"));
+    REQUIRE(obj.dump(0) == "{}");
+
+    obj = matjson::parse(R"({"a":1,"b":2,"c":3,"d":4})").unwrap();
+
+    REQUIRE(obj.erase("b"));
+    REQUIRE(obj.dump(0) == R"({"a":1,"c":3,"d":4})");
+}

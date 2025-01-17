@@ -185,6 +185,10 @@ bool Value::erase(std::string_view key) {
     auto& arr = m_impl->asArray();
     for (auto it = arr.begin(); it != arr.end(); ++it) {
         if (it->m_impl->key().value() == key) {
+            // vector::erase calls operator=(Value&&) to move the values,
+            // this is an issue because Value::operator= does not overwrite the existing key.
+            // avoid this by resetting the key, so then operator= does overwrite it
+            it->m_impl->clearKey();
             arr.erase(it);
             return true;
         }

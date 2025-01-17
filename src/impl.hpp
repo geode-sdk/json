@@ -39,6 +39,10 @@ public:
         m_key = std::move(key);
     }
 
+    void clearKey() {
+        m_key.reset();
+    }
+
     static Value asValue(std::unique_ptr<ValueImpl> impl) {
         return Value(std::move(impl));
     }
