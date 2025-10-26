@@ -234,8 +234,9 @@ namespace matjson {
             requires requires(Value const& value) { value.template as<T>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
+            if (value.size() != N) return geode::Err("array must have size " + std::to_string(N));
             std::array<T, N> res{};
-            for (size_t i = 0; i < N && i < value.size(); i++) {
+            for (size_t i = 0; i < N; ++i) {
                 GEODE_UNWRAP_INTO(res[i], value[i].template as<T>());
             }
             return geode::Ok(res);
