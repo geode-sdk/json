@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <array>
 
 namespace matjson {
     // allow converting parsing JSON directly to STL containers for convenience
@@ -224,6 +225,32 @@ namespace matjson {
                 return Value(*value.get());
             }
             return Value(nullptr);
+        }
+    };
+
+    template <class T, size_t N>
+    struct Serialize<std::array<T, N>> {
+        static geode::Result<std::array<T, N>> fromJson(Value const& value)
+            requires requires(Value const& value) { value.template as<T>(); }
+        {
+            if (!value.isArray()) return geode::Err("not an array");
+            if (value.size() != N) return geode::Err("array must have size " + std::to_string(N));
+            std::array<T, N> res{};
+            for (size_t i = 0; i < N; ++i) {
+                GEODE_UNWRAP_INTO(res[i], value[i].template as<T>());
+            }
+            return geode::Ok(res);
+        }
+
+        static matjson::Value toJson(std::array<T, N> const& value)
+            requires requires(T const& value) { Value(value); }
+        {
+            std::vector<matjson::Value> res;
+            res.reserve(N);
+            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                return Value(value);
+            });
+            return res;
         }
     };
 }
