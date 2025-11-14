@@ -289,6 +289,7 @@ There is built in support for serializing std containers by including an optiona
 
 Supported classes (given T is serializable):
 * `std::vector<T>`
+* `std::array<T, N>`
 * `std::span<T>`
 * `std::map<std::string, T>`
 * `std::unordered_map<std::string, T>`

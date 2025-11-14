@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 3.2.1)
+project(mat-json VERSION 3.2.2)
 
 set(SOURCE_FILES
     src/external/dragonbox.cpp
