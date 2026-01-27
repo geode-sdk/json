@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <array>
 
 namespace matjson {
@@ -38,13 +39,15 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::vector<T>> {
-        static geode::Result<std::vector<T>> fromJson(Value const& value)
+    template <class T, class A>
+    struct Serialize<std::vector<T, A>> {
+        using Vector = std::vector<T, A>;
+
+        static geode::Result<Vector> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<T>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
-            std::vector<T> res;
+            Vector res;
             res.reserve(value.size());
             for (auto const& entry : value) {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
@@ -53,7 +56,7 @@ namespace matjson {
             return geode::Ok(res);
         }
 
-        static Value toJson(std::vector<T> const& value)
+        static Value toJson(Vector const& value)
             requires requires(T const& value) { Value(value); }
         {
             std::vector<Value> res;
@@ -65,9 +68,9 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::span<T>> {
-        static Value toJson(std::span<T const> value)
+    template <class T, size_t Extent>
+    struct Serialize<std::span<T, Extent>> {
+        static Value toJson(std::span<T const, Extent> value)
             requires requires(T const& value) { Value(value); }
         {
             std::vector<Value> res;
@@ -79,13 +82,15 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::unordered_set<T>> {
-        static geode::Result<std::unordered_set<T>> fromJson(Value const& value)
+    template <class T, class Hash, class KeyEqual, class Alloc>
+    struct Serialize<std::unordered_set<T, Hash, KeyEqual, Alloc>> {
+        using Set = std::unordered_set<T, Hash, KeyEqual, Alloc>;
+
+        static geode::Result<Set> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
-            std::unordered_set<T> res;
+            Set res;
             res.reserve(value.size());
             for (auto const& entry : value) {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
@@ -94,7 +99,7 @@ namespace matjson {
             return geode::Ok(res);
         }
 
-        static Value toJson(std::unordered_set<T> const& value)
+        static Value toJson(Set const& value)
             requires requires(T const& value) { Value(value); }
         {
             std::vector<Value> res;
@@ -106,13 +111,15 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::set<T>> {
-        static geode::Result<std::set<T>> fromJson(Value const& value)
+    template <class T, class Compare, class Alloc>
+    struct Serialize<std::set<T, Compare, Alloc>> {
+        using Set = std::set<T, Compare, Alloc>;
+
+        static geode::Result<Set> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isArray()) return geode::Err("not an array");
-            std::set<T> res;
+            Set res;
             for (auto const& entry : value) {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
                 res.insert(std::move(vv));
@@ -120,7 +127,7 @@ namespace matjson {
             return geode::Ok(res);
         }
 
-        static Value toJson(std::set<T> const& value)
+        static Value toJson(Set const& value)
             requires requires(T const& value) { Value(value); }
         {
             std::vector<Value> res;
@@ -132,13 +139,15 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::map<std::string, T>> {
-        static geode::Result<std::map<std::string, T>> fromJson(Value const& value)
+    template <class T, class Compare, class Alloc>
+    struct Serialize<std::map<std::string, T, Compare, Alloc>> {
+        using Map = std::map<std::string, T, Compare, Alloc>;
+
+        static geode::Result<Map> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isObject()) return geode::Err("not an object");
-            std::map<std::string, T> res;
+            Map res;
             for (auto const& [k, v] : value) {
                 GEODE_UNWRAP_INTO(auto vv, v.template as<std::decay_t<T>>());
                 res.insert({k, vv});
@@ -146,7 +155,7 @@ namespace matjson {
             return geode::Ok(res);
         }
 
-        static Value toJson(std::map<std::string, T> const& value)
+        static Value toJson(Map const& value)
             requires requires(T const& value) { Value(value); }
         {
             Value res;
@@ -157,13 +166,15 @@ namespace matjson {
         }
     };
 
-    template <class T>
-    struct Serialize<std::unordered_map<std::string, T>> {
-        static geode::Result<std::unordered_map<std::string, T>> fromJson(Value const& value)
+    template <class T, class Hash, class KeyEqual, class Alloc>
+    struct Serialize<std::unordered_map<std::string, T, Hash, KeyEqual, Alloc>> {
+        using Map = std::unordered_map<std::string, T, Hash, KeyEqual, Alloc>;
+
+        static geode::Result<Map> fromJson(Value const& value)
             requires requires(Value const& value) { value.template as<std::decay_t<T>>(); }
         {
             if (!value.isObject()) return geode::Err("not an object");
-            std::unordered_map<std::string, T> res;
+            Map res;
             for (auto const& [k, v] : value) {
                 GEODE_UNWRAP_INTO(auto vv, v.template as<std::decay_t<T>>());
                 res.insert({k, vv});
@@ -171,7 +182,7 @@ namespace matjson {
             return geode::Ok(res);
         }
 
-        static Value toJson(std::unordered_map<std::string, T> const& value)
+        static Value toJson(Map const& value)
             requires requires(T const& value) { Value(value); }
         {
             Value res;
