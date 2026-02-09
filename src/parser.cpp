@@ -18,12 +18,24 @@ template <class S = std::istream&>
 struct StringStream {
     S stream;
     std::streambuf* buffer = nullptr;
+    ParseOpts opts{};
     int line = 1, column = 1, offset = 0;
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
 
     auto error(std::string_view msg) const noexcept {
         return Err(ParseError(std::string(msg), offset, line, column));
+    }
+
+    void adjustCounters(char ch) noexcept {
+        ++offset;
+        if (ch == '\n') {
+            ++line;
+            column = 1;
+        }
+        else {
+            ++column;
+        }
     }
 
     Result<char, ParseError> take() noexcept {
@@ -41,14 +53,7 @@ struct StringStream {
             ch = stream[0];
             stream = stream.substr(1);
         }
-        ++offset;
-        if (ch == '\n') {
-            ++line;
-            column = 1;
-        }
-        else {
-            ++column;
-        }
+        this->adjustCounters(ch);
         return Ok(ch);
     }
 
@@ -93,41 +98,69 @@ struct StringStream {
     }
 
     // takes until the next char is not whitespace
-    void skipWhitespace() noexcept {
+    Result<void, ParseError> skipWhitespace() noexcept {
         if constexpr (isStream) {
             while (true) {
                 auto ret = buffer->sgetc();
                 if (ret == std::char_traits<char>::eof()) {
                     stream.clear(stream.rdstate() | std::ios::eofbit);
-                    return;
+                    return Ok();
                 }
                 char ch = static_cast<char>(ret);
-                if (!isWhitespace(ch)) return;
+                if (ch == '/' && opts.comments) {
+                    GEODE_UNWRAP(this->skipComment());
+                    continue;
+                }
+                if (!isWhitespace(ch)) return Ok();
                 buffer->sbumpc();
-                ++offset;
-                if (ch == '\n') {
-                    ++line;
-                    column = 1;
-                }
-                else {
-                    ++column;
-                }
+                this->adjustCounters(ch);
             }
         }
         else {
-            while (!stream.empty() && isWhitespace(stream[0])) {
+            while (!stream.empty()) {
+                if (stream[0] == '/' && opts.comments) {
+                    GEODE_UNWRAP(this->skipComment());
+                    continue;
+                }
+                if (!isWhitespace(stream[0])) break;
                 char ch = stream[0];
                 stream = stream.substr(1);
-                ++offset;
-                if (ch == '\n') {
-                    ++line;
-                    column = 1;
-                }
-                else {
-                    ++column;
-                }
+                this->adjustCounters(ch);
             }
         }
+        return Ok();
+    }
+
+    Result<void, ParseError> skipComment() noexcept {
+        // '/'
+        (void)this->take();
+
+        auto ch = this->peek().unwrapOrDefault();
+        if (ch != '/' && ch != '*') return this->error("expected comment");
+        (void)this->take();
+
+        bool const starComment = ch == '*';
+        while (true) {
+            auto res = this->take();
+            // if we hit eof mid comment just ignore it
+            if (res.isErr()) break;
+            char ch = std::move(res).unwrap();
+
+            if (starComment) {
+                if (ch == '*') {
+                    auto peek = this->peek().unwrapOrDefault();
+                    if (peek == '/') {
+                        (void)this->take();
+                        break;
+                    }
+                }
+            }
+            else {
+                if (ch == '\n') break;
+            }
+        }
+
+        return Ok();
     }
 
     explicit operator bool() const noexcept {
@@ -184,8 +217,7 @@ void encodeUTF8(std::string& str, int32_t code_point) {
         str.push_back(
             static_cast<char>(0b10000000 | ((code_point & 0b000'111111'000000'000000) >> 12))
         );
-        str.push_back(static_cast<char>(0b10000000 | ((code_point & 0b000'000000'111111'000000) >> 6))
-        );
+        str.push_back(static_cast<char>(0b10000000 | ((code_point & 0b000'000000'111111'000000) >> 6)));
         str.push_back(static_cast<char>(0b10000000 | (code_point & 0b000'000000'000000'111111)));
     }
 }
@@ -364,12 +396,12 @@ Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept;
 template <class S>
 Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
     GEODE_UNWRAP(stream.take());
-    stream.skipWhitespace();
+    GEODE_UNWRAP(stream.skipWhitespace());
     std::vector<Value> object;
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p != '}') {
         while (true) {
-            stream.skipWhitespace();
+            GEODE_UNWRAP(stream.skipWhitespace());
             {
                 GEODE_UNWRAP_INTO(char c, stream.peek());
                 if (c != '"') {
@@ -377,7 +409,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
                 }
             }
             GEODE_UNWRAP_INTO(auto key, parseString(stream));
-            stream.skipWhitespace();
+            GEODE_UNWRAP(stream.skipWhitespace());
 
             GEODE_UNWRAP_INTO(char s, stream.take());
             if (s != ':') {
@@ -391,6 +423,10 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {
                 GEODE_UNWRAP(stream.take());
+                if (stream.opts.trailingCommas) {
+                    GEODE_UNWRAP(stream.skipWhitespace());
+                    if (stream.peek().unwrapOrDefault() == '}') break;
+                }
             }
             else if (c == '}') {
                 break;
@@ -408,7 +444,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
 template <class S>
 Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
     GEODE_UNWRAP(stream.take());
-    stream.skipWhitespace();
+    GEODE_UNWRAP(stream.skipWhitespace());
     std::vector<Value> array;
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p != ']') {
@@ -419,6 +455,10 @@ Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {
                 GEODE_UNWRAP(stream.take());
+                if (stream.opts.trailingCommas) {
+                    GEODE_UNWRAP(stream.skipWhitespace());
+                    if (stream.peek().unwrapOrDefault() == ']') break;
+                }
             }
             else if (c == ']') {
                 break;
@@ -464,9 +504,9 @@ Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) noexcept {
 
 template <class S>
 Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept {
-    stream.skipWhitespace();
+    GEODE_UNWRAP(stream.skipWhitespace());
     GEODE_UNWRAP_INTO(auto value, parseValue(stream));
-    stream.skipWhitespace();
+    GEODE_UNWRAP(stream.skipWhitespace());
     return Ok(std::move(value));
 }
 
@@ -482,15 +522,23 @@ Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) noexcept {
 }
 
 Result<Value, ParseError> Value::parse(std::istream& sourceStream) {
-    StringStream<std::istream&> stream{sourceStream, sourceStream.rdbuf()};
+    return parse(sourceStream, {});
+}
+
+Result<Value, ParseError> Value::parse(std::string_view source) {
+    return parse(source, {});
+}
+
+Result<Value, ParseError> Value::parse(std::istream& sourceStream, ParseOpts opts) {
+    StringStream<std::istream&> stream{sourceStream, sourceStream.rdbuf(), opts};
 
     return parseRoot(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));
     });
 }
 
-Result<Value, ParseError> Value::parse(std::string_view source) {
-    StringStream<std::string_view> stream{source, nullptr};
+Result<Value, ParseError> Value::parse(std::string_view source, ParseOpts opts) {
+    StringStream<std::string_view> stream{source, nullptr, opts};
 
     return parseRoot(stream).map([](auto impl) {
         return ValueImpl::asValue(std::move(impl));

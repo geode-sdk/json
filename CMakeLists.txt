@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 3.2.2)
+project(mat-json VERSION 3.3.0)
 
 set(SOURCE_FILES
     src/external/dragonbox.cpp
@@ -15,7 +15,7 @@ if (NOT COMMAND CPMAddPackage)
 endif()
 
 if (NOT TARGET GeodeResult)
-    CPMAddPackage("gh:geode-sdk/result@1.3.1")
+    CPMAddPackage("gh:geode-sdk/result@1.4.1")
 endif()
 
 # This option is only useful for Geode itself

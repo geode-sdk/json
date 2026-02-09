@@ -596,3 +596,84 @@ TEST_CASE("Value::erase") {
     REQUIRE(obj.erase("b"));
     REQUIRE(obj.dump(0) == R"({"a":1,"c":3,"d":4})");
 }
+
+TEST_CASE("Trailing commas") {
+    auto const opts = ParseOpts{.trailingCommas = true};
+    auto src1 = "[1,\n 20,\n 3,\n ]";
+
+    REQUIRE(matjson::parse(src1).isErr());
+    auto value = matjson::parse(src1, opts).unwrap();
+
+    REQUIRE(value[0] == 1);
+    REQUIRE(value[1] == 20);
+    REQUIRE(value[2] == 3);
+    REQUIRE(value.dump(0) == "[1,20,3]");
+
+    auto src2 = R"({"hello": true,})";
+    REQUIRE(matjson::parse(src2).isErr());
+    value = matjson::parse(src2, opts).unwrap();
+
+    REQUIRE(value["hello"] == true);
+    REQUIRE(value.dump(0) == R"({"hello":true})");
+
+    auto src3 = R"([1, [20, 3,], 4])";
+    REQUIRE(matjson::parse(src3).isErr());
+    value = matjson::parse(src3, opts).unwrap();
+
+    REQUIRE(value.dump(0) == "[1,[20,3],4]");
+
+    auto src4 = "[1, [2,],, 3]";
+    REQUIRE(matjson::parse(src4).isErr());
+    REQUIRE(matjson::parse(src4, opts).isErr());
+
+    auto src5 = "[1, [2,], 3,,]";
+    REQUIRE(matjson::parse(src5).isErr());
+    REQUIRE(matjson::parse(src5, opts).isErr());
+}
+
+TEST_CASE("Comments") {
+    auto const opts = ParseOpts{.comments = true};
+    auto src1 = "//at the very start!\n[]";
+
+    REQUIRE(matjson::parse(src1).isErr());
+    auto value = matjson::parse(src1, opts).unwrap();
+    REQUIRE(value.isArray());
+
+    auto src2 = "[]//into eof";
+    REQUIRE(matjson::parse(src2).isErr());
+    value = matjson::parse(src2, opts).unwrap();
+
+    REQUIRE(value.isArray());
+    REQUIRE(value.dump(0) == "[]");
+
+    auto src3 = "//just a comment";
+    REQUIRE(matjson::parse(src3).isErr());
+    REQUIRE(matjson::parse(src3, opts).isErr());
+
+    auto src4 = "[//hello!]";
+    REQUIRE(matjson::parse(src4).isErr());
+    REQUIRE(matjson::parse(src4, opts).isErr());
+
+    auto src5 = "[/!]";
+    auto res = matjson::parse(src5, opts);
+    auto resErr = res.unwrapErr();
+    REQUIRE(resErr.message == "expected comment");
+    REQUIRE(resErr.offset == 2);
+    REQUIRE(resErr.line == 1);
+    REQUIRE(resErr.column == 3);
+
+    auto src6 = R"("in a string // is fine!")";
+    value = matjson::parse(src6).unwrap();
+    REQUIRE(value == "in a string // is fine!");
+    value = matjson::parse(src6, opts).unwrap();
+    REQUIRE(value == "in a string // is fine!");
+
+    auto src7 =
+        "/*hello! this is a // stupid\n comment i dont like this style ***/[1, /* well it works "
+        "here */ 2]";
+    REQUIRE(matjson::parse(src7).isErr());
+    value = matjson::parse(src7, opts).unwrap();
+
+    REQUIRE(value.isArray());
+    REQUIRE(value.dump(0) == "[1,2]");
+}

@@ -85,6 +85,15 @@ namespace matjson {
     /// @return The JSON object
     Value makeObject(std::initializer_list<std::pair<std::string, Value>>);
 
+    struct ParseOpts {
+        /// Allows comments
+        bool comments = false;
+        /// Allows trailing commas
+        bool trailingCommas = false;
+
+        char _reserved[16];
+    };
+
     class MAT_JSON_DLL Value {
         std::unique_ptr<ValueImpl> m_impl;
         friend ValueImpl;
@@ -147,6 +156,18 @@ namespace matjson {
         /// @param source Stream to parse
         /// @return The parsed JSON value or an error
         static geode::Result<Value, ParseError> parse(std::istream& source);
+
+        /// Parses non standard JSON, given the options
+        /// @param source JSON string to parse
+        /// @param opts Non standard parsing options
+        /// @return The parsed JSON value or an error
+        static geode::Result<Value, ParseError> parse(std::string_view source, ParseOpts opts);
+
+        /// Parses non standard JSON, given the options
+        /// @param source Stream to parse
+        /// @param opts Non standard parsing options
+        /// @return The parsed JSON value or an error
+        static geode::Result<Value, ParseError> parse(std::istream& source, ParseOpts opts);
 
         /// Dumps the JSON value to a string, with a given indentation.
         /// If the given indentation is matjson::NO_INDENTATION, the json is compacted.
@@ -406,6 +427,24 @@ namespace matjson {
         return Value::parse(stream);
     }
 
+    /// Parses non standard JSON from a string
+    /// @param source The JSON string to parse
+    /// @param opts Non standard parsing options
+    /// @return The parsed JSON value or an error
+    /// @note Shorthand for Value::parse
+    inline geode::Result<Value, ParseError> parse(std::string_view source, ParseOpts opts) {
+        return Value::parse(source, opts);
+    }
+
+    /// Parses non standard JSON from an input stream
+    /// @param source Stream to parse
+    /// @param opts Non standard parsing options
+    /// @return The parsed JSON value or an error
+    /// @note Shorthand for Value::parse
+    inline geode::Result<Value, ParseError> parse(std::istream& stream, ParseOpts opts) {
+        return Value::parse(stream, opts);
+    }
+
     /// Parses JSON from a string and tries to convert it to a given type
     /// @tparam T The type to convert to
     /// @param source The JSON string to parse
@@ -425,6 +464,30 @@ namespace matjson {
     template <class T>
     inline geode::Result<T> parseAs(std::istream& stream) {
         GEODE_UNWRAP_INTO(auto parsed, Value::parse(stream));
+        return parsed.as<T>();
+    }
+
+    /// Parses non standard JSON from a string and tries to convert it to a given type
+    /// @tparam T The type to convert to
+    /// @param source The JSON string to parse
+    /// @param opts Non standard parsing options
+    /// @return The parsed struct or an error
+    /// @note Shorthand for Value::parse(...).as<T>()
+    template <class T>
+    inline geode::Result<T> parseAs(std::string_view source, ParseOpts opts) {
+        GEODE_UNWRAP_INTO(auto parsed, Value::parse(source, opts));
+        return parsed.as<T>();
+    }
+
+    /// Parses non standard JSON from an input stream and tries to convert it to a given type
+    /// @tparam T The type to convert to
+    /// @param source Stream to parse
+    /// @param opts Non standard parsing options
+    /// @return The parsed struct or an error
+    /// @note Shorthand for Value::parse(...).as<T>()
+    template <class T>
+    inline geode::Result<T> parseAs(std::istream& stream, ParseOpts opts) {
+        GEODE_UNWRAP_INTO(auto parsed, Value::parse(stream, opts));
         return parsed.as<T>();
     }
 
