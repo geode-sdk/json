@@ -141,10 +141,13 @@ struct StringStream {
 
         bool const starComment = ch == '*';
         while (true) {
-            auto res = this->take();
-            // if we hit eof mid comment just ignore it
-            if (res.isErr()) break;
-            char ch = std::move(res).unwrap();
+            auto const res = this->take();
+            if (res.isErr()) {
+                if (starComment) return this->error("expected end of comment");
+                // ignore otherwise
+                break;
+            }
+            char const ch = res.unwrap();
 
             if (starComment) {
                 if (ch == '*') {

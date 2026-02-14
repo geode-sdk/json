@@ -673,7 +673,16 @@ TEST_CASE("Comments") {
         "here */ 2]";
     REQUIRE(matjson::parse(src7).isErr());
     value = matjson::parse(src7, opts).unwrap();
-
     REQUIRE(value.isArray());
     REQUIRE(value.dump(0) == "[1,2]");
+
+    auto src8 = "[1,/**/2]";
+    REQUIRE(matjson::parse(src8).isErr());
+    value = matjson::parse(src8, opts).unwrap();
+    REQUIRE(value.isArray());
+    REQUIRE(value.dump(0) == "[1,2]");
+
+    auto src9 = "[1, 2]/* hello";
+    resErr = matjson::parse(src9, opts).unwrapErr();
+    REQUIRE(resErr.message == "expected end of comment");
 }
