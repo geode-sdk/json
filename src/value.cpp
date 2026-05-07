@@ -76,6 +76,9 @@ Value Value::array() {
     return Value(std::make_unique<ValueImpl>(Type::Array, std::vector<Value>{}));
 }
 
+// TODO: having explicit operator=(Value const&) and operator=(Value&&) would be
+// nice for correctness and performance, but it would break ABI... do it in the future
+
 Value& Value::operator=(Value value) {
     if (CHECK_DUMMY_NULL) return *this;
     m_impl.swap(value.m_impl);

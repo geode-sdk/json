@@ -136,8 +136,6 @@ namespace matjson {
         Value(Value&&) noexcept;
         ~Value();
 
-        // Value& operator=(Value&&);
-        // Value& operator=(Value const&);
         Value& operator=(Value);
 
         bool operator==(Value const&) const;
