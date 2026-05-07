@@ -58,9 +58,12 @@ Value::Value(Value&& other) noexcept {
         m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
         return;
     }
+    // copy it
+    auto key = other.getKey();
     m_impl.swap(other.m_impl);
-    // this is silly but its easier than checking m_impl == nullptr for a moved Value everywhere else
+
     other.m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
+    other.m_impl->key() = std::move(key);
 }
 
 Value::~Value() {}
@@ -185,10 +188,12 @@ bool Value::erase(std::string_view key) {
     auto& arr = m_impl->asArray();
     for (auto it = arr.begin(); it != arr.end(); ++it) {
         if (it->m_impl->key().value() == key) {
-            // vector::erase calls operator=(Value&&) to move the values,
-            // this is an issue because Value::operator= does not overwrite the existing key.
-            // avoid this by resetting the key, so then operator= does overwrite it
             it->m_impl->clearKey();
+            for (auto tit = it + 1; tit != arr.end(); ++tit) {
+                tit->m_impl.swap(it->m_impl);
+                ++it;
+            }
+            // "it" is now the last one, no funny moves happen
             arr.erase(it);
             return true;
         }

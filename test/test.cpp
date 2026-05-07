@@ -536,8 +536,10 @@ TEST_CASE("Value::operator= key behavior") {
     obj["a"] = std::move(foo["key"]);
 
     REQUIRE(a.getKey().value() == "a");
-    // key was moved so it turns into null
-    REQUIRE(!key.getKey().has_value());
+
+    REQUIRE(key.isNull());
+    REQUIRE(foo.contains("key"));
+    REQUIRE(foo["key"].isNull());
 }
 
 TEST_CASE("Value isExactlyT") {
@@ -685,4 +687,77 @@ TEST_CASE("Comments") {
     auto src9 = "[1, 2]/* hello";
     resErr = matjson::parse(src9, opts).unwrapErr();
     REQUIRE(resErr.message == "expected end of comment");
+}
+
+TEST_CASE("Value after move") {
+    SECTION("Moving out the entire object") {
+        matjson::Value value = matjson::parse("{\"hello\": \"world\"}").unwrap();
+        matjson::Value newOne(std::move(value));
+        REQUIRE(value.isNull());
+        REQUIRE(newOne.isObject());
+        REQUIRE(newOne["hello"] == "world");
+
+        REQUIRE(value.dump(0) == "null");
+        REQUIRE(newOne.dump(0) == "{\"hello\":\"world\"}");
+    }
+
+    SECTION("Moving out part of an object") {
+        matjson::Value value =
+            matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
+        matjson::Value newOne(std::move(value["sub"]));
+        REQUIRE(newOne.isObject());
+        REQUIRE(newOne["value"] == true);
+
+        REQUIRE(value.isObject());
+        REQUIRE(value.contains("sub"));
+        REQUIRE(value["sub"] == nullptr);
+        // its not the dummy null value
+        REQUIRE(value["sub"].getKey().has_value());
+        REQUIRE(value["hello"] == "world");
+        REQUIRE(value["bye"] == 10);
+
+        REQUIRE(value.dump(0) == R"({"hello":"world","sub":null,"bye":10})");
+    }
+
+    SECTION("Moving out and assigning in its place") {
+        matjson::Value value =
+            matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
+        matjson::Value newOne(std::move(value["sub"]));
+
+        auto& newSub = (value["sub"] = matjson::Value("hello"));
+
+        REQUIRE(newOne["value"] == true);
+        REQUIRE(newSub.getKey().value() == "sub");
+        REQUIRE(value["sub"] == "hello");
+    }
+
+    SECTION("Moving out and copying it somewhere else") {
+        matjson::Value value =
+            matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
+        matjson::Value newOne(std::move(value["sub"]));
+
+        matjson::Value value2 = matjson::parse(R"({"hello": "world"})").unwrap();
+        value2["test"] = newOne;
+
+        REQUIRE(!value.contains("test"));
+        REQUIRE(value2.contains("test"));
+        REQUIRE(!value2.contains("sub"));
+        REQUIRE(value2["test"]["value"] == true);
+        REQUIRE(value["sub"] == nullptr);
+    }
+
+    SECTION("Moving out and moving it somewhere else") {
+        matjson::Value value =
+            matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
+        matjson::Value newOne(std::move(value["sub"]));
+
+        matjson::Value value2 = matjson::parse(R"({"hello": "world"})").unwrap();
+        value2["test"] = std::move(newOne);
+
+        REQUIRE(!value.contains("test"));
+        REQUIRE(value2.contains("test"));
+        REQUIRE(!value2.contains("sub"));
+        REQUIRE(value2["test"]["value"] == true);
+        REQUIRE(value["sub"] == nullptr);
+    }
 }
