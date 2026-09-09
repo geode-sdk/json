@@ -761,3 +761,24 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == nullptr);
     }
 }
+
+TEST_CASE("Dummy value") {
+    SECTION("Does not get a key set on it") {
+        matjson::Value object;
+        auto& dummy = std::as_const(object)["no_exist"];
+        REQUIRE(dummy.isNull());
+        REQUIRE(!dummy.getKey().has_value());
+
+        object["foo"] = std::move(dummy);
+        REQUIRE(object.contains("foo"));
+        REQUIRE(object.get("foo").isOk());
+
+        // dummy value should stay unaffected
+        REQUIRE(dummy.isNull());
+        REQUIRE(!dummy.getKey().has_value());
+
+        auto& dummy2 = std::as_const(object)["no_exist"];
+        REQUIRE(dummy2.isNull());
+        REQUIRE(!dummy2.getKey().has_value());
+    }
+}

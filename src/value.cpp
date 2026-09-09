@@ -76,13 +76,23 @@ Value Value::array() {
     return Value(std::make_unique<ValueImpl>(Type::Array, std::vector<Value>{}));
 }
 
-// TODO: having explicit operator=(Value const&) and operator=(Value&&) would be
-// nice for correctness and performance, but it would break ABI... do it in the future
-
-Value& Value::operator=(Value value) {
+Value& Value::operator=(Value const& other) {
     if (CHECK_DUMMY_NULL) return *this;
-    m_impl.swap(value.m_impl);
-    if (auto& key = value.m_impl->key()) m_impl->setKey(std::move(*key));
+    auto key = this->getKey();
+    m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
+    m_impl->key() = std::move(key);
+    return *this;
+}
+
+Value& Value::operator=(Value&& other) {
+    if (CHECK_DUMMY_NULL) return *this;
+    auto myKey = std::move(m_impl->key());
+    auto otherKey = std::move(other.m_impl->key());
+    m_impl.swap(other.m_impl);
+    m_impl->key() = std::move(myKey);
+
+    other.m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
+    other.m_impl->key() = std::move(otherKey);
     return *this;
 }
 
