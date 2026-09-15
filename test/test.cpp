@@ -200,8 +200,8 @@ TEST_CASE("STL serialization") {
     std::vector<double> nums = {1.0, 3.4};
     std::span<double> span = nums;
 
-    REQUIRE(Value(nums).dump(0) == "[1,3.4]");
-    REQUIRE(Value(span).dump(0) == "[1,3.4]");
+    REQUIRE(Value(nums).dump(0) == "[1.0,3.4]");
+    REQUIRE(Value(span).dump(0) == "[1.0,3.4]");
 }
 
 TEST_CASE("UTF-8 strings") {
@@ -802,10 +802,22 @@ TEST_CASE("Dummy value") {
     }
 }
 
-TEST_CASE("Float precision") {
+TEST_CASE("Float dump precision") {
     matjson::Value value = 0.1f;
     REQUIRE(value.dump(0) == "0.1");
 
     value = 0.1;
     REQUIRE(value.dump(0) == "0.1");
+
+    value = 1000.0f;
+    REQUIRE(value.dump(0) == "1000.0");
+
+    value = 1000.0;
+    REQUIRE(value.dump(0) == "1000.0");
+
+    value = 1e30f;
+    REQUIRE(value.dump(0) == "1e+30");
+
+    value = 1e30;
+    REQUIRE(value.dump(0) == "1e+30");
 }

@@ -1,16 +1,11 @@
+#include "external/zmij.h"
 #include "impl.hpp"
 
 #include <array>
-#include <charconv>
 #include <cmath>
 #include <cstdio>
 #include <matjson.hpp>
 #include <string>
-
-// macOS and android still lack floating point std::to_chars support
-#ifndef __cpp_lib_to_chars
-    #include "external/dragonbox.h"
-#endif
 
 using namespace matjson;
 using namespace geode;
@@ -57,21 +52,14 @@ void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
                 out += "null"sv;
                 return;
             }
-#ifndef __cpp_lib_to_chars
-            // use the dragonbox algorithm, code from
-            // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
-            std::array<char, dragonbox::DtoaMinBufferLength> buffer;
-            auto* end = dragonbox::Dtoa(buffer.data(), number);
-            out += std::string_view(buffer.data(), end - buffer.data());
-#else
-            std::array<char, 32> buffer;
-            auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
-            if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
-                // this should never happen
-                std::abort();
+            // always use zmij instead of to_chars for consistency across platforms
+            std::array<char, 40> buffer;
+            auto* end = zmij::write(buffer.data(), buffer.size(), number);
+            auto str = std::string_view(buffer.data(), end - buffer.data());
+            out += str;
+            if (str.find('.') == std::string_view::npos && str.find('e') == std::string_view::npos) {
+                out += ".0";
             }
-            out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
-#endif
         };
         if (impl.isFloat()) {
             dumpFloat(impl.asNumber<float>());

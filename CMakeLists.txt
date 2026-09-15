@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.21)
 project(mat-json VERSION 3.3.1)
 
 set(SOURCE_FILES
-    src/external/dragonbox.cpp
     src/value.cpp
     src/impl.cpp
     src/parser.cpp
@@ -18,6 +17,8 @@ if (NOT TARGET GeodeResult)
     CPMAddPackage("gh:geode-sdk/result@1.4.1")
 endif()
 
+add_library(zmij src/external/zmij.cc)
+
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
     add_library(mat-json INTERFACE)
@@ -25,7 +26,7 @@ if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
     target_link_libraries(mat-json INTERFACE GeodeResult)
 
     add_library(mat-json-impl INTERFACE)
-    target_link_libraries(mat-json-impl INTERFACE mat-json)
+    target_link_libraries(mat-json-impl INTERFACE mat-json zmij)
     target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
 else()
     add_library(mat-json ${SOURCE_FILES})
@@ -33,7 +34,7 @@ else()
     target_compile_features(mat-json PUBLIC cxx_std_20)
 
     target_include_directories(mat-json PUBLIC include)
-    target_link_libraries(mat-json PUBLIC GeodeResult)
+    target_link_libraries(mat-json PUBLIC GeodeResult zmij)
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)
