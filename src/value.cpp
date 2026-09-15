@@ -39,8 +39,8 @@ Value::Value(std::vector<Value> value) {
     m_impl = std::make_unique<ValueImpl>(Type::Array, std::move(value));
 }
 
-Value::Value(std::vector<Value> value, bool) {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, value);
+Value::Value(ObjCtorTag, std::vector<Value> value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Object, std::move(value));
 }
 
 Value::Value(std::nullptr_t) {

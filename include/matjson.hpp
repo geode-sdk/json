@@ -99,9 +99,11 @@ namespace matjson {
         friend ValueImpl;
         Value(std::unique_ptr<ValueImpl>);
 
+        struct ObjCtorTag {};
+
         friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
         void setKey_(std::string_view key);
-        Value(std::vector<Value>, bool);
+        Value(ObjCtorTag, std::vector<Value>);
 
     public:
         /// Defaults to a JSON object, for convenience
@@ -509,10 +511,10 @@ namespace matjson {
 
     inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
         std::vector<Value> arr;
-        for (auto const& [key, value] : entries) {
-            arr.emplace_back(value).setKey_(key);
+        for (auto& [key, value] : entries) {
+            arr.emplace_back(std::move(value)).setKey_(key);
         }
-        return Value(std::move(arr), true);
+        return Value(Value::ObjCtorTag{}, std::move(arr));
     }
 
     // For fmtlib, lol
