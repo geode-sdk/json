@@ -58,7 +58,7 @@ void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
             auto str = std::string_view(buffer.data(), end - buffer.data());
             out += str;
             if (str.find('.') == std::string_view::npos && str.find('e') == std::string_view::npos) {
-                out += ".0";
+                out += ".0"sv;
             }
         };
         if (impl.isFloat()) {
