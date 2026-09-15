@@ -11,7 +11,8 @@ using std::uintmax_t;
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
-    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>> m_value;
+    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>, float>
+        m_value;
 
 public:
     template <class T>
@@ -75,6 +76,10 @@ public:
         return std::holds_alternative<double>(m_value);
     }
 
+    bool isFloat() const {
+        return std::holds_alternative<float>(m_value);
+    }
+
     bool isInt() const {
         return std::holds_alternative<intmax_t>(m_value);
     }
@@ -89,6 +94,8 @@ public:
             return static_cast<NumberType>(std::get<intmax_t>(m_value));
         else if (std::holds_alternative<uintmax_t>(m_value))
             return static_cast<NumberType>(std::get<uintmax_t>(m_value));
+        else if (std::holds_alternative<float>(m_value))
+            return static_cast<NumberType>(std::get<float>(m_value));
         else return static_cast<NumberType>(std::get<double>(m_value));
     }
 
@@ -104,35 +111,53 @@ public:
                 static constexpr auto INDEX_DOUBLE = 2;
                 static constexpr auto INDEX_INT = 3;
                 static constexpr auto INDEX_UINT = 4;
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_DOUBLE, std::remove_cvref_t<decltype(m_value)>>,
-                              double>);
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_INT, std::remove_cvref_t<decltype(m_value)>>,
-                              std::intmax_t>);
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_UINT, std::remove_cvref_t<decltype(m_value)>>,
-                              std::uintmax_t>);
+                static constexpr auto INDEX_FLOAT = 7;
+                using VariantType = std::remove_cvref_t<decltype(m_value)>;
+                static_assert(
+                    std::is_same_v<std::variant_alternative_t<INDEX_DOUBLE, VariantType>, double>
+                );
+                static_assert(
+                    std::is_same_v<std::variant_alternative_t<INDEX_INT, VariantType>, std::intmax_t>
+                );
+                static_assert(
+                    std::is_same_v<std::variant_alternative_t<INDEX_UINT, VariantType>, std::uintmax_t>
+                );
+                static_assert(
+                    std::is_same_v<std::variant_alternative_t<INDEX_FLOAT, VariantType>, float>
+                );
                 auto const asDouble = [](auto const& value) {
-                    return std::get<double>(value.m_value);
+                    return *std::get_if<double>(&value.m_value);
+                };
+                auto const asFloat = [](auto const& value) {
+                    return *std::get_if<float>(&value.m_value);
                 };
                 auto const asInt = [](auto const& value) {
-                    return std::get<std::intmax_t>(value.m_value);
+                    return *std::get_if<std::intmax_t>(&value.m_value);
                 };
                 auto const asUInt = [](auto const& value) {
-                    return std::get<std::uintmax_t>(value.m_value);
+                    return *std::get_if<std::uintmax_t>(&value.m_value);
                 };
                 switch (m_value.index()) {
                     case INDEX_DOUBLE:
                         switch (other.m_value.index()) {
                             case INDEX_DOUBLE: return operation(asDouble(*this), asDouble(other));
+                            case INDEX_FLOAT: return operation(asDouble(*this), asFloat(other));
                             case INDEX_INT: return operation(asDouble(*this), asInt(other));
                             case INDEX_UINT: return operation(asDouble(*this), asUInt(other));
+                            default: return fall;
+                        }
+                    case INDEX_FLOAT:
+                        switch (other.m_value.index()) {
+                            case INDEX_DOUBLE: return operation(asFloat(*this), asDouble(other));
+                            case INDEX_FLOAT: return operation(asFloat(*this), asFloat(other));
+                            case INDEX_INT: return operation(asFloat(*this), asInt(other));
+                            case INDEX_UINT: return operation(asFloat(*this), asUInt(other));
                             default: return fall;
                         }
                     case INDEX_INT:
                         switch (other.m_value.index()) {
                             case INDEX_DOUBLE: return operation(asInt(*this), asDouble(other));
+                            case INDEX_FLOAT: return operation(asInt(*this), asFloat(other));
                             case INDEX_INT: return operation(asInt(*this), asInt(other));
                             case INDEX_UINT: return operation(asInt(*this), asUInt(other));
                             default: return fall;
@@ -140,6 +165,7 @@ public:
                     case INDEX_UINT:
                         switch (other.m_value.index()) {
                             case INDEX_DOUBLE: return operation(asUInt(*this), asDouble(other));
+                            case INDEX_FLOAT: return operation(asUInt(*this), asFloat(other));
                             case INDEX_INT: return operation(asUInt(*this), asInt(other));
                             case INDEX_UINT: return operation(asUInt(*this), asUInt(other));
                             default: return fall;

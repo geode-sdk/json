@@ -547,32 +547,51 @@ TEST_CASE("Value isExactlyT") {
     REQUIRE(!value.isExactlyInt());
     REQUIRE(value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = 123.0;
     REQUIRE(!value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
+
+    value = 123.0f;
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+    REQUIRE(value.isExactlyFloat());
 
     value = -10;
     REQUIRE(value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = "hello";
     REQUIRE(!value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     // parsed ints are stored as unsigned unless they are negative
     value = matjson::parse("123").unwrap();
     REQUIRE(!value.isExactlyInt());
     REQUIRE(value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = matjson::parse("-123").unwrap();
     REQUIRE(value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
+
+    // parsed decimals are always stored as double
+    value = matjson::parse("0.1").unwrap();
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 }
 
 TEST_CASE("Value::erase") {
@@ -781,4 +800,12 @@ TEST_CASE("Dummy value") {
         REQUIRE(dummy2.isNull());
         REQUIRE(!dummy2.getKey().has_value());
     }
+}
+
+TEST_CASE("Float precision") {
+    matjson::Value value = 0.1f;
+    REQUIRE(value.dump(0) == "0.1");
+
+    value = 0.1;
+    REQUIRE(value.dump(0) == "0.1");
 }

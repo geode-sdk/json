@@ -50,28 +50,35 @@ void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
         out += std::to_string(impl.asNumber<uintmax_t>());
     }
     else {
-        auto number = impl.asNumber<double>();
-        if (std::isnan(number) || std::isinf(number)) {
-            // JSON does not support inf/nan values, so copy what other libraries do
-            // which is to just turn them into null
-            out += "null"sv;
-            return;
-        }
+        auto const dumpFloat = [&](auto number) {
+            if (std::isnan(number) || std::isinf(number)) {
+                // JSON does not support inf/nan values, so copy what other libraries do
+                // which is to just turn them into null
+                out += "null"sv;
+                return;
+            }
 #ifndef __cpp_lib_to_chars
-        // use the dragonbox algorithm, code from
-        // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
-        std::array<char, dragonbox::DtoaMinBufferLength> buffer;
-        auto* end = dragonbox::Dtoa(buffer.data(), number);
-        out += std::string_view(buffer.data(), end - buffer.data());
+            // use the dragonbox algorithm, code from
+            // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
+            std::array<char, dragonbox::DtoaMinBufferLength> buffer;
+            auto* end = dragonbox::Dtoa(buffer.data(), number);
+            out += std::string_view(buffer.data(), end - buffer.data());
 #else
-        std::array<char, 32> buffer;
-        auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
-        if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
-            // this should never happen
-            std::abort();
-        }
-        out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
+            std::array<char, 32> buffer;
+            auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
+            if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
+                // this should never happen
+                std::abort();
+            }
+            out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
 #endif
+        };
+        if (impl.isFloat()) {
+            dumpFloat(impl.asNumber<float>());
+        }
+        else {
+            dumpFloat(impl.asNumber<double>());
+        }
     }
 }
 

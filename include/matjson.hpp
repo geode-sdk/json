@@ -114,6 +114,7 @@ namespace matjson {
         Value(std::vector<Value> value);
         Value(std::nullptr_t);
         Value(double value);
+        Value(float value);
         Value(bool value);
         explicit Value(std::intmax_t value);
         explicit Value(std::uintmax_t value);
@@ -304,6 +305,11 @@ namespace matjson {
         /// @note This is useful for checking if the number is an integer or a double.
         bool isExactlyDouble() const;
 
+        /// Returns true if the number stored is a float, false otherwise.
+        /// This depends on how the value is stored internally.
+        /// @note This is useful for checking if the number is an integer or a double.
+        bool isExactlyFloat() const;
+
         /// Returns true if the number stored is a signed integer, false otherwise.
         /// This depends on how the value is stored internally.
         /// @note This is useful for checking if the number is an integer or a double.
@@ -333,6 +339,10 @@ namespace matjson {
         /// Returns the number as a double, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<double> asDouble() const;
+
+        /// Returns the number as a float, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<float> asFloat() const;
 
         /// Returns a reference to the array, if this is an array.
         /// If this is not an array, returns an error.
@@ -368,9 +378,14 @@ namespace matjson {
                 }
             }
             else if constexpr (std::is_floating_point_v<T>) {
-                return this->asDouble().map([](double v) -> T {
-                    return static_cast<T>(v);
-                });
+                if constexpr (std::is_same_v<std::remove_cvref_t<T>, float>) {
+                    return this->asFloat();
+                }
+                else {
+                    return this->asDouble().map([](double v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
             }
             else if constexpr (CanDeserialize<T>) {
                 return Serialize<std::remove_cvref_t<T>>::fromJson(*this);

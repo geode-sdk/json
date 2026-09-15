@@ -23,6 +23,10 @@ Value::Value(double value) {
     m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
 
+Value::Value(float value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
 Value::Value(intmax_t value) {
     m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
@@ -346,6 +350,11 @@ bool Value::operator>(Value const& other) const {
 bool Value::isExactlyDouble() const {
     if (!this->isNumber()) return false;
     return m_impl->isDouble();
+}
+
+bool Value::isExactlyFloat() const {
+    if (!this->isNumber()) return false;
+    return m_impl->isFloat();
 }
 
 bool Value::isExactlyInt() const {
