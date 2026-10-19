@@ -876,3 +876,16 @@ TEST_CASE("Max array/object nesting") {
         CHECK(matjson::parse("[[1],[2],[3, [10]],[4],[5],[6]]", opts).isErr());
     }
 }
+
+TEST_CASE("Duplicate key parsing") {
+    matjson::Value value = matjson::parse(R"({"a": 10, "a": 123})").unwrap();
+    CHECK(value.size() == 1);
+    // keep only the last value, similar to other libraries (python, js, rust)
+    CHECK(value["a"] == 123);
+    CHECK(value.dump(0) == R"({"a":123})");
+}
+
+TEST_CASE("Duplicate keys keep the position of the first occurrence") {
+    auto v = matjson::parse(R"({"a":1,"b":2,"a":3})").unwrap();
+    CHECK(v.dump(0) == R"({"a":3,"b":2})");
+}
