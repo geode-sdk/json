@@ -1,16 +1,25 @@
 #pragma once
 
 #include "linkage.hpp"
+#include "matjson.hpp"
 
 #include <cstddef>
 #include <iterator>
-#include <memory>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace matjson {
-    class Value;
-    class ValueImpl;
+    namespace detail {
+        using ArrayIter = std::vector<Value>::iterator;
+        using MapIter = std::vector<std::pair<std::string, Value>>::iterator;
 
-    class MAT_JSON_DLL ValueIterator {
+        using ConstArrayIter = std::vector<Value>::const_iterator;
+        using ConstMapIter = std::vector<std::pair<std::string, Value>>::const_iterator;
+    }
+
+    class ValueIterator {
     public:
         using iterator_category = std::forward_iterator_tag;
         using value_type = Value;
@@ -18,32 +27,62 @@ namespace matjson {
         using pointer = Value*;
         using reference = Value&;
 
-        ValueIterator();
-        ValueIterator(ValueIterator const&);
-        ValueIterator(ValueIterator&&) noexcept;
-        ValueIterator& operator=(ValueIterator const&);
-        ValueIterator& operator=(ValueIterator&&) noexcept;
-        ~ValueIterator();
+        ValueIterator() = default;
+        ~ValueIterator() = default;
 
-        Value& operator*() const;
-        Value* operator->() const;
-        ValueIterator& operator++();
-        ValueIterator operator++(int);
-        bool operator==(ValueIterator const& other) const;
-        bool operator!=(ValueIterator const& other) const;
+        ValueIterator(ValueIterator const&) = default;
+        ValueIterator(ValueIterator&&) noexcept = default;
+        ValueIterator& operator=(ValueIterator const&) = default;
+        ValueIterator& operator=(ValueIterator&&) noexcept = default;
+
+        Value& operator*() const {
+            if (auto ptr = std::get_if<0>(&data)) {
+                return **ptr;
+            }
+            else {
+                auto& x = **std::get_if<1>(&data);
+                return x.second;
+            }
+        }
+
+        Value* operator->() const {
+            return &**this;
+        }
+
+        ValueIterator& operator++() {
+            if (auto ptr = std::get_if<0>(&data)) {
+                ++*ptr;
+            }
+            else {
+                ++*std::get_if<1>(&data);
+            }
+            return *this;
+        }
+
+        ValueIterator operator++(int) {
+            auto copy = *this;
+            ++*this;
+            return copy;
+        }
+
+        bool operator==(ValueIterator const& other) const {
+            if (data.index() != other.data.index()) return false;
+            if (auto ptr = std::get_if<0>(&data)) return *ptr == *std::get_if<0>(&other.data);
+            return *std::get_if<1>(&data) == *std::get_if<1>(&other.data);
+        }
+
+        bool operator!=(ValueIterator const& other) const {
+            return !(*this == other);
+        }
 
     private:
-        struct Impl;
-        std::unique_ptr<Impl> m_impl;
-        ValueIterator(ValueImpl*, bool begin);
+        std::variant<detail::ArrayIter, detail::MapIter> data = detail::ArrayIter{};
 
-        Impl* impl();
-        Impl const* impl() const;
+        MAT_JSON_DLL ValueIterator(ValueImpl*, bool begin);
         friend Value;
-        friend Impl;
     };
 
-    class MAT_JSON_DLL ConstValueIterator {
+    class ConstValueIterator {
     public:
         using iterator_category = std::forward_iterator_tag;
         using value_type = Value;
@@ -51,28 +90,58 @@ namespace matjson {
         using pointer = Value const*;
         using reference = Value const&;
 
-        ConstValueIterator();
-        ConstValueIterator(ConstValueIterator const&);
-        ConstValueIterator(ConstValueIterator&&) noexcept;
-        ConstValueIterator& operator=(ConstValueIterator const&);
-        ConstValueIterator& operator=(ConstValueIterator&&) noexcept;
-        ~ConstValueIterator();
+        ConstValueIterator() = default;
+        ~ConstValueIterator() = default;
 
-        Value const& operator*() const;
-        Value const* operator->() const;
-        ConstValueIterator& operator++();
-        ConstValueIterator operator++(int);
-        bool operator==(ConstValueIterator const& other) const;
-        bool operator!=(ConstValueIterator const& other) const;
+        ConstValueIterator(ConstValueIterator const&) = default;
+        ConstValueIterator(ConstValueIterator&&) noexcept = default;
+        ConstValueIterator& operator=(ConstValueIterator const&) = default;
+        ConstValueIterator& operator=(ConstValueIterator&&) noexcept = default;
+
+        Value const& operator*() const {
+            if (auto ptr = std::get_if<0>(&data)) {
+                return **ptr;
+            }
+            else {
+                auto& x = **std::get_if<1>(&data);
+                return x.second;
+            }
+        }
+
+        Value const* operator->() const {
+            return &**this;
+        }
+
+        ConstValueIterator& operator++() {
+            if (auto ptr = std::get_if<0>(&data)) {
+                ++*ptr;
+            }
+            else {
+                ++*std::get_if<1>(&data);
+            }
+            return *this;
+        }
+
+        ConstValueIterator operator++(int) {
+            auto copy = *this;
+            ++*this;
+            return copy;
+        }
+
+        bool operator==(ConstValueIterator const& other) const {
+            if (data.index() != other.data.index()) return false;
+            if (auto ptr = std::get_if<0>(&data)) return *ptr == *std::get_if<0>(&other.data);
+            return *std::get_if<1>(&data) == *std::get_if<1>(&other.data);
+        }
+
+        bool operator!=(ConstValueIterator const& other) const {
+            return !(*this == other);
+        }
 
     private:
-        struct Impl;
-        std::unique_ptr<Impl> m_impl;
-        ConstValueIterator(ValueImpl*, bool begin);
+        std::variant<detail::ConstArrayIter, detail::ConstMapIter> data = detail::ConstArrayIter{};
 
-        Impl* impl();
-        Impl const* impl() const;
+        MAT_JSON_DLL ConstValueIterator(ValueImpl*, bool begin);
         friend Value;
-        friend Impl;
     };
 }

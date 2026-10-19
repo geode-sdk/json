@@ -1,6 +1,5 @@
 #pragma once
 
-#include "matjson/iterator.hpp"
 #include "matjson/linkage.hpp"
 
 #include <Geode/Result.hpp>
@@ -28,6 +27,8 @@ namespace matjson {
     class ValueImpl;
 
     class Value;
+    class ValueIterator;
+    class ConstValueIterator;
 
     struct ParseError {
         std::string message;
@@ -548,3 +549,6 @@ template <>
 struct std::tuple_element<1, matjson::Value> {
     using type = matjson::Value;
 };
+
+// intentional
+#include "matjson/iterator.hpp"

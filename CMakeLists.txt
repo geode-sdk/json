@@ -18,7 +18,7 @@ if (NOT TARGET GeodeResult)
     CPMAddPackage("gh:geode-sdk/result@1.4.1")
 endif()
 
-CPMAddPackage("gh:Tessil/ordered-map#88b7a58f5e9be7f87998bbcbdd3865023738ef92")
+CPMAddPackage("gh:geode-sdk/ordered-map#d4d347edfd26c50b9429522c9f112186d01a8698")
 
 add_library(zmij src/external/zmij.cc)
 
