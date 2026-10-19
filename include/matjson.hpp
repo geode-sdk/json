@@ -90,6 +90,8 @@ namespace matjson {
         bool comments = false;
         /// Allows trailing commas
         bool trailingCommas = false;
+        /// Maximum nesting depth for arrays and objects
+        int maxDepth = 256;
 
         char _reserved[16];
     };

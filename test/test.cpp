@@ -854,3 +854,25 @@ TEST_CASE("Comparisons") {
         CHECK(n1 == n2);
     }
 }
+
+TEST_CASE("Max array/object nesting") {
+    SECTION("Parser rejects excessive nesting instead of crashing") {
+        std::string deep(200000, '[');
+        deep += std::string(200000, ']');
+        auto res = matjson::parse(deep);
+        CHECK(res.isErr());
+    }
+
+    SECTION("Parser accepts nesting up to maxDepth") {
+        matjson::ParseOpts opts{.maxDepth = 3};
+        CHECK(matjson::parse("[[[1]]]", opts).isOk());
+        CHECK(matjson::parse("[[[[1]]]]", opts).isErr());
+    }
+
+    SECTION("Parser depth limit resets across sibling containers") {
+        matjson::ParseOpts opts{.maxDepth = 2};
+        // many siblings at depth 2 must not accumulate depth
+        CHECK(matjson::parse("[[1],[2],[3],[4],[5],[6]]", opts).isOk());
+        CHECK(matjson::parse("[[1],[2],[3, [10]],[4],[5],[6]]", opts).isErr());
+    }
+}

@@ -14,12 +14,25 @@ static bool isWhitespace(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
 
+struct DepthGuard {
+    int& depth;
+
+    explicit DepthGuard(int& depth) : depth(depth) {
+        ++depth;
+    }
+
+    ~DepthGuard() {
+        --depth;
+    }
+};
+
 template <class S = std::istream&>
 struct StringStream {
     S stream;
     std::streambuf* buffer = nullptr;
     ParseOpts opts{};
     int line = 1, column = 1, offset = 0;
+    int depth = 0;
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
 
@@ -398,6 +411,11 @@ Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept;
 
 template <class S>
 Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
+    if (stream.depth >= stream.opts.maxDepth) {
+        return stream.error("max nesting depth exceeded");
+    }
+    DepthGuard guard(stream.depth);
+
     GEODE_UNWRAP(stream.take());
     GEODE_UNWRAP(stream.skipWhitespace());
     std::vector<Value> object;
@@ -446,6 +464,11 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
 
 template <class S>
 Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
+    if (stream.depth >= stream.opts.maxDepth) {
+        return stream.error("max nesting depth exceeded");
+    }
+    DepthGuard guard(stream.depth);
+
     GEODE_UNWRAP(stream.take());
     GEODE_UNWRAP(stream.skipWhitespace());
     std::vector<Value> array;
