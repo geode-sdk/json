@@ -1,9 +1,13 @@
 #pragma once
 
 #include <Geode/Result.hpp>
+#include <initializer_list>
 #include <istream>
 #include <memory>
+#include <optional>
+#include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef MAT_JSON_DYNAMIC
@@ -41,9 +45,10 @@ namespace matjson {
 
     struct ParseError {
         std::string message;
-        int offset = 0, line = 0, column = 0;
+        std::size_t offset = 0;
+        int line = 0, column = 0;
 
-        inline ParseError(std::string msg, int offset, int line, int column) :
+        inline ParseError(std::string msg, std::size_t offset, int line, int column) :
             message(std::move(msg)), offset(offset), line(line), column(column) {}
 
         /// Returns a string representation of the error, useful for coercing into Result<T>
@@ -514,7 +519,7 @@ namespace matjson {
     // This is used internally by C++ when destructuring the value, useful for range for loops:
     // > for (auto const& [key, value] : object) { ... }
     template <std::size_t Index, class T>
-        requires requires { std::is_same_v<std::decay_t<T>, Value>; }
+        requires std::is_same_v<std::decay_t<T>, Value>
     decltype(auto) get(T&& value) {
         if constexpr (Index == 0) {
             auto const opt = value.getKey();

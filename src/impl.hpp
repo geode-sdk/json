@@ -53,7 +53,7 @@ public:
         return std::get<bool>(m_value);
     }
 
-    std::string asString() const {
+    std::string const& asString() const {
         return std::get<std::string>(m_value);
     }
 

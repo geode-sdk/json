@@ -31,7 +31,8 @@ struct StringStream {
     S stream;
     std::streambuf* buffer = nullptr;
     ParseOpts opts{};
-    int line = 1, column = 1, offset = 0;
+    std::size_t offset = 0;
+    int line = 1, column = 1;
     int depth = 0;
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
