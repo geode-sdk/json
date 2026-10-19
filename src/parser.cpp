@@ -37,11 +37,11 @@ struct StringStream {
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
 
-    auto error(std::string_view msg) const noexcept {
+    auto error(std::string_view msg) const {
         return Err(ParseError(std::string(msg), offset, line, column));
     }
 
-    void adjustCounters(char ch) noexcept {
+    void adjustCounters(char ch) {
         ++offset;
         if (ch == '\n') {
             ++line;
@@ -52,7 +52,7 @@ struct StringStream {
         }
     }
 
-    Result<char, ParseError> take() noexcept {
+    Result<char, ParseError> take() {
         char ch;
         if constexpr (isStream) {
             auto res = buffer->sbumpc();
@@ -96,7 +96,7 @@ struct StringStream {
         }
     }
 
-    Result<char, ParseError> peek() noexcept {
+    Result<char, ParseError> peek() {
         if constexpr (isStream) {
             auto ret = buffer->sgetc();
             if (ret == std::char_traits<char>::eof()) {
@@ -112,7 +112,7 @@ struct StringStream {
     }
 
     // takes until the next char is not whitespace
-    Result<void, ParseError> skipWhitespace() noexcept {
+    Result<void, ParseError> skipWhitespace() {
         if constexpr (isStream) {
             while (true) {
                 auto ret = buffer->sgetc();
@@ -145,7 +145,7 @@ struct StringStream {
         return Ok();
     }
 
-    Result<void, ParseError> skipComment() noexcept {
+    Result<void, ParseError> skipComment() {
         // '/'
         (void)this->take();
 
@@ -180,7 +180,7 @@ struct StringStream {
         return Ok();
     }
 
-    explicit operator bool() const noexcept {
+    explicit operator bool() const {
         if constexpr (isStream) {
             return buffer->sgetc() != std::char_traits<char>::eof();
         }
@@ -240,7 +240,7 @@ void encodeUTF8(std::string& str, int32_t code_point) {
 }
 
 template <class S>
-Result<std::string, ParseError> parseString(StringStream<S>& stream) noexcept {
+Result<std::string, ParseError> parseString(StringStream<S>& stream) {
     // when this function is called we already know the first character is a quote
     GEODE_UNWRAP(stream.take());
     std::string str;
@@ -317,7 +317,7 @@ Result<std::string, ParseError> parseString(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) {
     std::string buffer;
     bool isFloating = false;
     bool isNegative = false;
@@ -408,10 +408,10 @@ Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) noexcept {
 
 // parses a json element with optional whitespace around it
 template <class S>
-Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept;
+Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream);
 
 template <class S>
-Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) {
     if (stream.depth >= stream.opts.maxDepth) {
         return stream.error("max nesting depth exceeded");
     }
@@ -474,7 +474,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) {
     if (stream.depth >= stream.opts.maxDepth) {
         return stream.error("max nesting depth exceeded");
     }
@@ -511,7 +511,7 @@ Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) {
     GEODE_UNWRAP_INTO(char p, stream.peek());
     switch (p) {
         case 't':
@@ -540,7 +540,7 @@ Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) {
     GEODE_UNWRAP(stream.skipWhitespace());
     GEODE_UNWRAP_INTO(auto value, parseValue(stream));
     GEODE_UNWRAP(stream.skipWhitespace());
@@ -548,7 +548,7 @@ Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) {
     GEODE_UNWRAP_INTO(auto value, parseElement(stream));
     // if theres anything left in the stream that is not whitespace
     // it should be considered an error
