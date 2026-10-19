@@ -13,7 +13,7 @@ struct matjson::Serialize<T> {
         reflect::for_each<T>([&](auto N) {
             if (error) return;
             auto& field = reflect::get<N>(value);
-            static constexpr auto fieldName = reflect::member_name<N>(value);
+            auto const fieldName = reflect::member_name<N>(value);
 
             if (!json.contains(fieldName)) {
                 error = "field `" + std::string(fieldName) + "` is missing";

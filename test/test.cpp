@@ -4,7 +4,7 @@
 #include <catch2/matchers/catch_matchers_all.hpp>
 #include <map>
 #include <matjson.hpp>
-#include <matjson/reflect.hpp>
+#include <matjson/reflect_all.hpp>
 #include <matjson/std.hpp>
 #include <unordered_map>
 
@@ -22,12 +22,15 @@ using namespace std::string_view_literals;
 
 // template <>
 // struct matjson::Serialize<CoolStruct> {
-//     static matjson::Value to_json(CoolStruct const& cool) {
+//     static matjson::Value toJson(CoolStruct const& cool) {
 //         return matjson::makeObject({{"name", cool.name}, {"value", cool.value}});
 //     }
 
-//     static Result<CoolStruct, matjson::GenericError> from_json(matjson::Value const& value) {
-//         return CoolStruct{.name = value["name"].as_string(), .value = value["value"].as_int()};
+//     static Result<CoolStruct> fromJson(matjson::Value const& value) {
+//         CoolStruct res;
+//         GEODE_UNWRAP_INTO(res.name, value["name"].asString());
+//         GEODE_UNWRAP_INTO(res.value, value["value"].asInt());
+//         return Ok(res);
 //     }
 // };
 

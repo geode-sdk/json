@@ -244,7 +244,7 @@ The library now has experimental support for reflection using the [qlibs/reflect
 Including the optional header will define JSON serialization for any type it can, making them able to be used with matjson instantly
 
 ```cpp
-#include <matjson/reflect.hpp>
+#include <matjson/reflect_all.hpp>
 
 struct Stats {
     int hunger;
@@ -274,7 +274,7 @@ int main() {
     //     "name": "Joe",
     //     "stats": {
     //         "hunger": 0,
-    //         "health": 0
+    //         "health": 100
     //     },
     //     "registered": true
     // }
