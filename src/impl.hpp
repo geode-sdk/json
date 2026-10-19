@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <matjson.hpp>
 #include <variant>
@@ -99,13 +100,30 @@ public:
         else return static_cast<NumberType>(std::get<double>(m_value));
     }
 
+    static bool objectEquals(std::vector<Value> const& a, std::vector<Value> const& b) {
+        if (a.size() != b.size()) return false;
+        return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](Value const& x, Value const& y) {
+            return fromValue(x).key() == fromValue(y).key() && x == y;
+        });
+    }
+
+    static bool objectLess(std::vector<Value> const& a, std::vector<Value> const& b) {
+        return std::lexicographical_compare(
+            a.begin(), a.end(), b.begin(), b.end(), [](Value const& x, Value const& y) {
+                auto const& kx = fromValue(x).key();
+                auto const& ky = fromValue(y).key();
+                if (kx != ky) return kx < ky;
+                return x < y;
+            }
+        );
+    }
+
     template <class Op>
     bool operatorImpl(ValueImpl const& other, Op&& operation, bool null, bool fall) const {
         switch (m_type) {
             case Type::Null: return null;
             case Type::Bool: return operation(asBool(), other.asBool());
             case Type::String: return operation(asString(), other.asString());
-            case Type::Object:
             case Type::Array: return operation(asArray(), other.asArray());
             case Type::Number: {
                 static constexpr auto INDEX_DOUBLE = 2;
@@ -179,19 +197,19 @@ public:
 
     bool operator==(ValueImpl const& other) const {
         if (m_type != other.m_type) return false;
+        if (m_type == Type::Object) return objectEquals(asArray(), other.asArray());
         return operatorImpl(other, std::equal_to<>{}, true, false);
     }
 
     bool operator<(ValueImpl const& other) const {
         if (m_type < other.m_type) return true;
         if (m_type > other.m_type) return false;
-        return operatorImpl(other, std::less<>{}, true, false);
+        if (m_type == Type::Object) return objectLess(asArray(), other.asArray());
+        return operatorImpl(other, std::less<>{}, false, false);
     }
 
     bool operator>(ValueImpl const& other) const {
-        if (m_type > other.m_type) return true;
-        if (m_type < other.m_type) return false;
-        return operatorImpl(other, std::greater<>{}, false, false);
+        return other < *this;
     }
 };
 

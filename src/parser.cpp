@@ -10,7 +10,7 @@ using namespace matjson;
 using namespace geode;
 using namespace std::string_view_literals;
 
-bool isWhitespace(char c) {
+static bool isWhitespace(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
 

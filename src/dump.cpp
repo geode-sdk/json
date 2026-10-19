@@ -11,7 +11,7 @@ using namespace matjson;
 using namespace geode;
 using namespace std::string_view_literals;
 
-void dumpJsonString(std::string_view str, std::string& out) {
+static void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
     for (char c : str) {
         switch (c) {
@@ -37,7 +37,7 @@ void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
 }
 
-void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
+static void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     if (impl.isInt()) {
         out += std::to_string(impl.asNumber<intmax_t>());
     }
@@ -70,7 +70,7 @@ void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     }
 }
 
-void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+static void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
         case Type::Null: {
@@ -106,7 +106,6 @@ void dumpImpl(Value const& value, std::string& out, int indentation, int depth) 
                     out.push_back('\n');
                     char iden = indentation == TAB_INDENTATION ? '\t' : ' ';
                     size_t size = indentation == TAB_INDENTATION ? depth : depth * indentation;
-                    out.reserve(out.size() + size);
                     for (size_t i = 0; i < size; ++i) {
                         out.push_back(iden);
                     }

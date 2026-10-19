@@ -829,3 +829,28 @@ TEST_CASE("Float dump precision") {
     value = 1e30;
     REQUIRE(value.dump(0) == "1e+30");
 }
+
+TEST_CASE("Comparisons") {
+    SECTION("Object equality checks keys") {
+        auto a = matjson::makeObject({{"a", 1}});
+        auto b = matjson::makeObject({{"b", 1}});
+        CHECK_FALSE(a == b);
+        CHECK(a == matjson::makeObject({{"a", 1}}));
+        CHECK_FALSE(a == matjson::makeObject({{"a", 2}}));
+    }
+
+    SECTION("Object ordering is irreflexive and consistent") {
+        auto a = matjson::makeObject({{"a", 1}});
+        auto b = matjson::makeObject({{"b", 1}});
+        CHECK_FALSE(a < a);
+        CHECK((a < b) != (b < a));
+        CHECK((a > b) == (b < a));
+    }
+
+    SECTION("Null ordering is irreflexive") {
+        matjson::Value n1 = nullptr, n2 = nullptr;
+        CHECK_FALSE(n1 < n2);
+        CHECK_FALSE(n1 > n2);
+        CHECK(n1 == n2);
+    }
+}
