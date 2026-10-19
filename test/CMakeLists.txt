@@ -5,8 +5,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 CPMAddPackage("gh:fmtlib/fmt#12.1.0")
 
-add_executable(manual-testing manual.cpp)
-target_link_libraries(manual-testing PRIVATE mat-json fmt)
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/manual.cpp")
+    add_executable(manual-testing manual.cpp)
+    target_link_libraries(manual-testing PRIVATE mat-json fmt)
+endif()
 
 FetchContent_Declare(
   Catch2
