@@ -90,7 +90,16 @@ Value& Value::operator=(Value const& other) {
 
 Value& Value::operator=(Value&& other) {
     if (CHECK_DUMMY_NULL) return *this;
+    if (this == &other) return *this;
+
     auto myKey = std::move(m_impl->key());
+
+    if (other.m_impl == getDummyNullValue()->m_impl) {
+        m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
+        m_impl->key() = std::move(myKey);
+        return *this;
+    }
+
     auto otherKey = std::move(other.m_impl->key());
     m_impl.swap(other.m_impl);
     m_impl->key() = std::move(myKey);

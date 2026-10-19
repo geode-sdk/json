@@ -779,6 +779,14 @@ TEST_CASE("Value after move") {
         REQUIRE(value2["test"]["value"] == true);
         REQUIRE(value["sub"] == nullptr);
     }
+
+    SECTION("Self move-assignment") {
+        matjson::Value value = matjson::parse(R"({"a": 123})").unwrap();
+
+        value = std::move(value);
+        REQUIRE(value.dump(0) == R"({"a":123})");
+        REQUIRE(value["a"] == 123);
+    }
 }
 
 TEST_CASE("Dummy value") {
