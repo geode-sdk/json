@@ -33,7 +33,7 @@ public:
         auto& map = m_value.emplace<OrderedMap>();
         for (auto& value : values) {
             // this optional should never fail
-            auto key = value.m_impl->key().value_or({});
+            auto key = value.m_impl->key().value_or(std::string());
             map.insert_or_assign(key, std::move(value));
         }
     }
