@@ -85,7 +85,7 @@ namespace matjson {
         /// Maximum nesting depth for arrays and objects
         int maxDepth = 256;
 
-        char _reserved[16];
+        char _reserved[16]{};
     };
 
     class MAT_JSON_DLL Value {
@@ -314,27 +314,27 @@ namespace matjson {
         /// @note This is useful for checking if the number is an integer or a double.
         bool isExactlyUInt() const;
 
-        /// Returns the number as a boolean, if this is a boolean.
+        /// Returns the value as a boolean, if this is a boolean.
         /// If this is not a boolean, returns an error.
         geode::Result<bool> asBool() const;
 
-        /// Returns the number as a string, if this is a string.
+        /// Returns the value as a string, if this is a string.
         /// If this is not a string, returns an error.
         geode::Result<std::string> asString() const;
 
-        /// Returns the number as a signed integer, if this is a number.
+        /// Returns the value as a signed integer, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<std::intmax_t> asInt() const;
 
-        /// Returns the number as an unsigned integer, if this is a number.
+        /// Returns the value as an unsigned integer, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<std::uintmax_t> asUInt() const;
 
-        /// Returns the number as a double, if this is a number.
+        /// Returns the value as a double, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<double> asDouble() const;
 
-        /// Returns the number as a float, if this is a number.
+        /// Returns the value as a float, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<float> asFloat() const;
 
@@ -521,7 +521,7 @@ namespace matjson {
     inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
         std::vector<Value> arr;
         for (auto& [key, value] : entries) {
-            arr.emplace_back(std::move(value)).setKey_(key);
+            arr.emplace_back(value).setKey_(key);
         }
         return Value(Value::ObjCtorTag{}, arr);
     }

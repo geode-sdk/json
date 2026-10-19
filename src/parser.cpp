@@ -214,7 +214,7 @@ Result<ValuePtr, ParseError> parseConstant(StringStream<S>& stream) {
     return stream.error("invalid constant");
 }
 
-void encodeUTF8(std::string& str, int32_t code_point) {
+static void encodeUTF8(std::string& str, int32_t code_point) {
     if (code_point < 0x80) {
         str.push_back(static_cast<char>(code_point));
     }
@@ -508,8 +508,8 @@ Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) {
         case 'f':
         case 'n': return parseConstant(stream);
         case '"': {
-            return parseString(stream).map([](auto value) {
-                return std::make_unique<ValueImpl>(Type::String, value);
+            return parseString(stream).map([](auto&& value) {
+                return std::make_unique<ValueImpl>(Type::String, std::move(value));
             });
         }
         case '{': return parseObject(stream);

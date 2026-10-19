@@ -11,7 +11,7 @@ using std::uintmax_t;
 
 // stolen from geode sorry
 
-inline uint64_t fnv1aHash(std::string_view str) {
+static uint64_t fnv1aHash(std::string_view str) {
     uint64_t hash = 0xcbf29ce484222325;
     for (char c : str) {
         hash ^= c;

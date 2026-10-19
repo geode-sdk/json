@@ -37,7 +37,8 @@ else()
     target_compile_features(mat-json PUBLIC cxx_std_20)
 
     target_include_directories(mat-json PUBLIC include)
-    target_link_libraries(mat-json PUBLIC GeodeResult zmij tsl::ordered_map)
+    target_link_libraries(mat-json PUBLIC GeodeResult)
+    target_link_libraries(mat-json PRIVATE zmij tsl::ordered_map)
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)

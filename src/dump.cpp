@@ -140,6 +140,7 @@ static void dumpImpl(Value const& value, std::string& out, int indentation, int 
 }
 
 std::string Value::dump(int indentationSize) const {
+    if (indentationSize < 0) indentationSize = TAB_INDENTATION;
     std::string out;
     dumpImpl(*this, out, indentationSize, 0);
     return out;

@@ -304,6 +304,13 @@ Result<double> Value::asDouble() const {
     return Ok(m_impl->asNumber<double>());
 }
 
+Result<float> Value::asFloat() const {
+    if (this->type() != Type::Number) {
+        return Err("not a number");
+    }
+    return Ok(m_impl->asNumber<float>());
+}
+
 Result<std::vector<Value>&> Value::asArray() & {
     if (this->type() != Type::Array) {
         return Err("not an array");
