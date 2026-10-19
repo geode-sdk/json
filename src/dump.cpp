@@ -71,11 +71,13 @@ static void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
 }
 
 static void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+    if (value.isNull()) {
+        out += "null"sv;
+        return;
+    }
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
-        case Type::Null: {
-            out += "null"sv;
-        } break;
+        case Type::Null: break; // handled above
         case Type::Bool: {
             out += impl.asBool() ? "true"sv : "false"sv;
         } break;

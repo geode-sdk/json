@@ -509,9 +509,9 @@ namespace matjson {
         requires std::is_same_v<std::decay_t<T>, Value>
     decltype(auto) get(T&& value) {
         if constexpr (Index == 0) {
-            auto const opt = value.getKey();
+            auto opt = value.getKey();
             if (!opt) return std::string();
-            return std::string(*opt);
+            return std::string(std::move(*opt));
         }
         else if constexpr (Index == 1) {
             return std::forward<T>(value);

@@ -440,7 +440,7 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) {
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
             value->setKey(key);
-            object.insert_or_assign(key, ValueImpl::asValue(std::move(value)));
+            object.insert_or_assign(std::move(key), ValueImpl::asValue(std::move(value)));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <matjson.hpp>
 #include <memory>
@@ -11,7 +12,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <array>
 
 namespace matjson {
     // allow converting parsing JSON directly to STL containers for convenience
@@ -53,7 +53,7 @@ namespace matjson {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
                 res.emplace_back(std::move(vv));
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static Value toJson(Vector const& value)
@@ -61,9 +61,11 @@ namespace matjson {
         {
             std::vector<Value> res;
             res.reserve(value.size());
-            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
-                return Value(value);
-            });
+            std::transform(
+                value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                    return Value(value);
+                }
+            );
             return res;
         }
     };
@@ -75,9 +77,11 @@ namespace matjson {
         {
             std::vector<Value> res;
             res.reserve(value.size());
-            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
-                return Value(value);
-            });
+            std::transform(
+                value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                    return Value(value);
+                }
+            );
             return res;
         }
     };
@@ -96,7 +100,7 @@ namespace matjson {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
                 res.insert(std::move(vv));
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static Value toJson(Set const& value)
@@ -104,9 +108,11 @@ namespace matjson {
         {
             std::vector<Value> res;
             res.reserve(value.size());
-            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
-                return Value(value);
-            });
+            std::transform(
+                value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                    return Value(value);
+                }
+            );
             return res;
         }
     };
@@ -124,7 +130,7 @@ namespace matjson {
                 GEODE_UNWRAP_INTO(auto vv, entry.template as<T>());
                 res.insert(std::move(vv));
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static Value toJson(Set const& value)
@@ -132,9 +138,11 @@ namespace matjson {
         {
             std::vector<Value> res;
             res.reserve(value.size());
-            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
-                return Value(value);
-            });
+            std::transform(
+                value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                    return Value(value);
+                }
+            );
             return res;
         }
     };
@@ -150,9 +158,9 @@ namespace matjson {
             Map res;
             for (auto const& [k, v] : value) {
                 GEODE_UNWRAP_INTO(auto vv, v.template as<std::decay_t<T>>());
-                res.insert({k, vv});
+                res.insert({k, std::move(vv)});
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static Value toJson(Map const& value)
@@ -177,9 +185,9 @@ namespace matjson {
             Map res;
             for (auto const& [k, v] : value) {
                 GEODE_UNWRAP_INTO(auto vv, v.template as<std::decay_t<T>>());
-                res.insert({k, vv});
+                res.insert({k, std::move(vv)});
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static Value toJson(Map const& value)
@@ -250,7 +258,7 @@ namespace matjson {
             for (size_t i = 0; i < N; ++i) {
                 GEODE_UNWRAP_INTO(res[i], value[i].template as<T>());
             }
-            return geode::Ok(res);
+            return geode::Ok(std::move(res));
         }
 
         static matjson::Value toJson(std::array<T, N> const& value)
@@ -258,9 +266,11 @@ namespace matjson {
         {
             std::vector<matjson::Value> res;
             res.reserve(N);
-            std::transform(value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
-                return Value(value);
-            });
+            std::transform(
+                value.begin(), value.end(), std::back_inserter(res), [](T const& value) -> Value {
+                    return Value(value);
+                }
+            );
             return res;
         }
     };

@@ -892,3 +892,192 @@ TEST_CASE("Duplicate keys keep the position of the first occurrence") {
     auto v = matjson::parse(R"({"a":1,"b":2,"a":3})").unwrap();
     CHECK(v.dump(0) == R"({"a":3,"b":2})");
 }
+
+TEST_CASE("Plain nulls") {
+    SUBCASE("Behave like any other null") {
+        matjson::Value n = nullptr;
+        CHECK(n.isNull());
+        CHECK(n.type() == matjson::Type::Null);
+        CHECK(!n.getKey().has_value());
+        CHECK(n.dump(0) == "null");
+        CHECK(n.size() == 0);
+        CHECK(n == nullptr);
+        CHECK(n == matjson::parse("null").unwrap());
+        CHECK_FALSE(n == matjson::Value(0));
+        CHECK_FALSE(n == matjson::Value::object());
+        CHECK(n.asBool().isErr());
+        CHECK(n.asString().isErr());
+        CHECK(n.get("a").isErr());
+        CHECK(n.get(0).isErr());
+        CHECK(n.begin() == n.end());
+    }
+
+    SUBCASE("Ordering is the same as for nodes with a payload") {
+        matjson::Value n = nullptr;
+        matjson::Value parsedNull = matjson::parse("null").unwrap();
+        for (auto const& other :
+             {matjson::Value(1),
+              matjson::Value("s"),
+              matjson::Value(true),
+              matjson::Value::array(),
+              matjson::Value::object()}) {
+            CHECK((other < n) == (other < parsedNull));
+            CHECK((n < other) == (parsedNull < other));
+            CHECK((n > other) == (parsedNull > other));
+            CHECK((other > n) == (other > parsedNull));
+        }
+        CHECK_FALSE(n < parsedNull);
+        CHECK_FALSE(parsedNull < n);
+        CHECK_FALSE(n > parsedNull);
+    }
+
+    SUBCASE("Copying and assigning") {
+        matjson::Value n = nullptr;
+        matjson::Value copy = n;
+        CHECK(copy.isNull());
+
+        matjson::Value v = 5;
+        v = n;
+        CHECK(v.isNull());
+        v = 7;
+        CHECK(v == 7);
+        v = std::move(n);
+        CHECK(v.isNull());
+    }
+
+    SUBCASE("Inside containers") {
+        matjson::Value arr = matjson::Value::array();
+        arr.push(nullptr);
+        arr.push(1);
+        arr.push(nullptr);
+        CHECK(arr.dump(0) == "[null,1,null]");
+        CHECK(arr == matjson::parse("[null, 1, null]").unwrap());
+
+        matjson::Value obj = matjson::makeObject({{"a", nullptr}, {"b", 1}});
+        CHECK(obj.dump(0) == R"({"a":null,"b":1})");
+        // an entry is still reachable by key, and still knows it
+        CHECK(obj.contains("a"));
+        CHECK(obj["a"].isNull());
+        CHECK(obj["a"].getKey().value() == "a");
+        for (auto const& [key, value] : obj) {
+            CHECK((key == "a" || key == "b"));
+            (void)value;
+        }
+    }
+}
+
+TEST_CASE("Moved-from values") {
+    SUBCASE("Standalone value becomes a plain null") {
+        matjson::Value a = "hello";
+        matjson::Value b = std::move(a);
+        CHECK(b == "hello");
+        CHECK(a.isNull());
+        CHECK(!a.getKey().has_value());
+        CHECK(a.dump(0) == "null");
+        // and can be reused
+        a = 12;
+        CHECK(a == 12);
+        a = std::move(b);
+        CHECK(a == "hello");
+        CHECK(b.isNull());
+    }
+
+    SUBCASE("Array elements survive reallocation") {
+        std::vector<matjson::Value> vec;
+        for (int i = 0; i < 1000; ++i) {
+            vec.emplace_back(i);
+            vec.emplace_back(std::to_string(i));
+        }
+        REQUIRE(vec.size() == 2000);
+        for (int i = 0; i < 1000; ++i) {
+            CHECK(vec[i * 2] == i);
+            CHECK(vec[i * 2 + 1] == std::to_string(i));
+        }
+    }
+
+    SUBCASE("Moved-from object entry keeps its key") {
+        auto obj = matjson::parse(R"({"a": 1, "b": "two", "c": [3]})").unwrap();
+        matjson::Value taken = std::move(obj["b"]);
+        CHECK(taken == "two");
+        CHECK(obj["b"].isNull());
+        CHECK(obj["b"].getKey().value() == "b");
+
+        std::vector<std::string> keys;
+        for (auto const& [key, value] : obj) {
+            keys.push_back(key);
+        }
+        CHECK(keys == std::vector<std::string>{"a", "b", "c"});
+        CHECK(obj.dump(0) == R"({"a":1,"b":null,"c":[3]})");
+    }
+
+    SUBCASE("Assigning into an entry keeps the entry's key") {
+        auto obj = matjson::parse(R"({"a": 1, "b": 2})").unwrap();
+        matjson::Value n = nullptr;
+        obj["a"] = n; // null copied over an entry
+        CHECK(obj["a"].isNull());
+        CHECK(obj["a"].getKey().value() == "a");
+
+        obj["b"] = std::move(n); // plain null moved over an entry
+        CHECK(obj["b"].isNull());
+        CHECK(obj["b"].getKey().value() == "b");
+
+        obj["a"] = 3; // and back to a real value
+        CHECK(obj["a"] == 3);
+        CHECK(obj["a"].getKey().value() == "a");
+        CHECK(obj.dump(0) == R"({"a":3,"b":null})");
+    }
+
+    SUBCASE("Moving a keyed value over a standalone value clears the key") {
+        auto obj = matjson::parse(R"({"a": 1})").unwrap();
+        matjson::Value standalone = nullptr;
+        standalone = std::move(obj["a"]);
+        CHECK(standalone == 1);
+        CHECK(!standalone.getKey().has_value());
+        CHECK(obj["a"].getKey().value() == "a");
+    }
+
+    SUBCASE("Moving a value out of the container that is being assigned to") {
+        matjson::Value v = matjson::parse(R"({"child": {"x": [1, 2, 3]}})").unwrap();
+        v = std::move(v["child"]);
+        CHECK(v.dump(0) == R"({"x":[1,2,3]})");
+
+        matjson::Value w = matjson::parse(R"({"child": {"x": [1, 2, 3]}})").unwrap();
+        w = w["child"];
+        CHECK(w.dump(0) == R"({"x":[1,2,3]})");
+    }
+
+    SUBCASE("Setting with set() and operator[]") {
+        matjson::Value obj;
+        obj.set("n", nullptr);
+        obj.set("s", "str");
+        obj["m"] = nullptr;
+        CHECK(obj.size() == 3);
+        CHECK(obj.dump(0) == R"({"n":null,"s":"str","m":null})");
+        CHECK(obj["n"].getKey().value() == "n");
+        CHECK(obj["m"].getKey().value() == "m");
+
+        obj.set("s", nullptr); // overwrite keeps position and key
+        CHECK(obj.dump(0) == R"({"n":null,"s":null,"m":null})");
+        CHECK(obj["s"].getKey().value() == "s");
+
+        // existing key through operator[] returns the same entry
+        auto& ref = obj["s"];
+        CHECK(&ref == &obj["s"]);
+        CHECK(obj.size() == 3);
+    }
+
+    SUBCASE("Dummy null is never modified") {
+        matjson::Value obj;
+        auto& dummy = std::as_const(obj)["missing"];
+        matjson::Value moved = std::move(dummy);
+        CHECK(moved.isNull());
+        CHECK(dummy.isNull());
+        CHECK(!dummy.getKey().has_value());
+
+        matjson::Value number = 5;
+        auto& writable = number["missing"]; // non-const access to a non-object gives the dummy too
+        writable = 5; // assigning into the dummy is a no-op
+        CHECK(std::as_const(obj)["missing"].isNull());
+        CHECK(std::as_const(number)["missing"].isNull());
+    }
+}

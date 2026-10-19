@@ -48,26 +48,28 @@ Value::Value(ObjCtorTag, std::span<Value> value) {
 }
 
 Value::Value(std::nullptr_t) {
-    m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
+    // empty m_impl
 }
 
 Value::Value(std::unique_ptr<ValueImpl> impl) : m_impl(std::move(impl)) {}
 
 Value::Value(Value const& other) {
-    m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
+    if (other.m_impl) {
+        m_impl = std::make_unique<ValueImpl>(*other.m_impl);
+    }
 }
 
 Value::Value(Value&& other) noexcept {
-    if (other.m_impl == getDummyNullValue()->m_impl) {
-        m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-        return;
+    if (other.m_impl && other.m_impl->key()) {
+        auto key = *other.m_impl->key();
+        m_impl = std::move(other.m_impl);
+        // cant have empty m_impl here, since it had a key
+        other.m_impl = ValueImpl::makeKeyedNull(std::move(key));
     }
-    // copy it
-    auto key = other.getKey();
-    m_impl.swap(other.m_impl);
-
-    other.m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-    other.m_impl->key() = std::move(key);
+    else {
+        m_impl = std::move(other.m_impl);
+        // other is left with an empty m_impl, which is fine
+    }
 }
 
 Value::~Value() {}
@@ -82,9 +84,21 @@ Value Value::array() {
 
 Value& Value::operator=(Value const& other) {
     if (CHECK_DUMMY_NULL) return *this;
+    if (this == &other) return *this;
+    // assignment never changes which object entry this is
     auto key = this->getKey();
-    m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
-    m_impl->key() = std::move(key);
+    std::unique_ptr<ValueImpl> copy;
+    if (other.m_impl) {
+        copy = std::make_unique<ValueImpl>(*other.m_impl);
+    }
+    m_impl = std::move(copy);
+    if (key) {
+        this->setKey_(*key);
+    }
+    else if (m_impl) {
+        // didnt have a key before, so make sure not to copy other's key
+        m_impl->clearKey();
+    }
     return *this;
 }
 
@@ -92,20 +106,27 @@ Value& Value::operator=(Value&& other) {
     if (CHECK_DUMMY_NULL) return *this;
     if (this == &other) return *this;
 
-    auto myKey = std::move(m_impl->key());
+    // `other` may live inside of our old node (e.g. `v = std::move(v["child"])`),
+    // so keep the old node alive until we are done touching `other`
+    auto old = std::move(m_impl);
+    std::optional<std::string> myKey;
+    if (old) myKey = std::move(old->key());
 
-    if (other.m_impl == getDummyNullValue()->m_impl) {
-        m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-        m_impl->key() = std::move(myKey);
-        return *this;
+    std::optional<std::string> otherKey;
+    if (other.m_impl) otherKey = std::move(other.m_impl->key());
+
+    m_impl = std::move(other.m_impl);
+    if (myKey) {
+        if (m_impl) m_impl->setKey(std::move(*myKey));
+        else m_impl = ValueImpl::makeKeyedNull(std::move(*myKey));
     }
-
-    auto otherKey = std::move(other.m_impl->key());
-    m_impl.swap(other.m_impl);
-    m_impl->key() = std::move(myKey);
-
-    other.m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-    other.m_impl->key() = std::move(otherKey);
+    else if (m_impl) {
+        m_impl->clearKey();
+    }
+    // if other had a key, make sure it has an m_impl
+    if (otherKey) {
+        other.m_impl = ValueImpl::makeKeyedNull(std::move(*otherKey));
+    }
     return *this;
 }
 
@@ -149,10 +170,12 @@ Value& Value::operator[](std::string_view key) {
         return *getDummyNullValue();
     }
     auto& map = m_impl->asMap();
-    auto [it, inserted] = map.try_emplace(std::string(key));
-    if (inserted) {
-        it.value().m_impl->setKey(std::string(key));
+    if (auto found = map.find(key); found != map.end()) {
+        return found.value();
     }
+    std::string owned(key);
+    auto [it, inserted] = map.try_emplace(owned);
+    it.value().m_impl->setKey(std::move(owned));
     return it.value();
 }
 
@@ -179,10 +202,12 @@ void Value::set(std::string_view key, Value value) {
         return;
     }
     auto& map = m_impl->asMap();
-    auto [it, inserted] = map.insert_or_assign(std::string(key), std::move(value));
-    if (inserted) {
-        it.value().m_impl->setKey(std::string(key));
+    if (auto found = map.find(key); found != map.end()) {
+        found.value() = std::move(value);
+        return;
     }
+    auto [it, inserted] = map.try_emplace(std::string(key), std::move(value));
+    it.value().setKey_(key);
 }
 
 void Value::push(Value value) {
@@ -229,7 +254,7 @@ size_t Value::size() const {
 }
 
 Type Value::type() const {
-    return m_impl->type();
+    return m_impl ? m_impl->type() : Type::Null;
 }
 
 ValueIterator Value::begin() {
@@ -261,12 +286,18 @@ ConstValueIterator Value::end() const {
 }
 
 std::optional<std::string> Value::getKey() const {
+    if (!m_impl) return std::nullopt;
     return m_impl->key();
 }
 
 void Value::setKey_(std::string_view key) {
     if (CHECK_DUMMY_NULL) return;
-    return m_impl->setKey(std::string(key));
+    if (!m_impl) {
+        // need m_impl to store keys
+        m_impl = ValueImpl::makeKeyedNull(std::string(key));
+        return;
+    }
+    m_impl->setKey(std::string(key));
 }
 
 Result<bool> Value::asBool() const {
@@ -332,15 +363,19 @@ Result<std::vector<Value> const&> Value::asArray() const& {
     return Ok(m_impl->asArray());
 }
 
+// If either side has no m_impl it is a null, so only the types can differ
 bool Value::operator==(Value const& other) const {
+    if (!m_impl || !other.m_impl) return this->type() == other.type();
     return *m_impl == *other.m_impl;
 }
 
 bool Value::operator<(Value const& other) const {
+    if (!m_impl || !other.m_impl) return this->type() < other.type();
     return *m_impl < *other.m_impl;
 }
 
 bool Value::operator>(Value const& other) const {
+    if (!m_impl || !other.m_impl) return other.type() < this->type();
     return *m_impl > *other.m_impl;
 }
 

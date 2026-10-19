@@ -35,7 +35,7 @@ struct matjson::Serialize<T> {
             field = std::move(result).unwrap();
         });
         if (error) return geode::Err(*error);
-        return geode::Ok(value);
+        return geode::Ok(std::move(value));
     }
 
     static matjson::Value toJson(T const& value) {

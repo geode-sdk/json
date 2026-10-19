@@ -54,9 +54,11 @@ public:
     ValueImpl(Value::ObjCtorTag, std::span<Value> values) : m_type(Type::Object) {
         auto& map = m_value.emplace<OrderedMap>();
         for (auto& value : values) {
-            // this optional should never fail
-            auto key = value.m_impl->key().value_or(std::string());
-            map.insert_or_assign(key, std::move(value));
+            // a null m_impl means a plain null without a key, which should never
+            // happen here, but fall back to an empty key just like before
+            std::string key;
+            if (value.m_impl && value.m_impl->key()) key = *value.m_impl->key();
+            map.insert_or_assign(std::move(key), std::move(value));
         }
     }
 
@@ -84,6 +86,10 @@ public:
 
     static Value asValue(std::unique_ptr<ValueImpl> impl) {
         return Value(std::move(impl));
+    }
+
+    static std::unique_ptr<ValueImpl> makeKeyedNull(std::string key) {
+        return std::make_unique<ValueImpl>(Type::Null, std::move(key), std::monostate{});
     }
 
     bool asBool() const {
@@ -244,4 +250,5 @@ using ValuePtr = std::unique_ptr<matjson::ValueImpl>;
 
 matjson::Value* getDummyNullValue();
 
-#define CHECK_DUMMY_NULL (this->m_impl == getDummyNullValue()->m_impl)
+// Every plain null has an empty m_impl, so the dummy has to be identified by address
+#define CHECK_DUMMY_NULL (this == getDummyNullValue())
