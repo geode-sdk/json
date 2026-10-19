@@ -122,7 +122,7 @@ Result<Value const&> Value::get(std::string_view key) const {
         return Err("not an object");
     }
     auto& map = m_impl->asMap();
-    auto it = map.find(std::string(key));
+    auto it = map.find(key);
     if (it != map.end()) {
         return Ok(it.value());
     }
@@ -206,14 +206,14 @@ bool Value::erase(std::string_view key) {
         return false;
     }
     auto& map = m_impl->asMap();
-    return map.erase(std::string(key)) == 1;
+    return map.erase(key) == 1;
 }
 
 bool Value::contains(std::string_view key) const {
     if (this->type() != Type::Object) {
         return false;
     }
-    return m_impl->asMap().contains(std::string(key));
+    return m_impl->asMap().contains(key);
 }
 
 size_t Value::size() const {
