@@ -10,18 +10,10 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/manual.cpp")
     target_link_libraries(manual-testing PRIVATE mat-json fmt)
 endif()
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.5.2
-)
-
-FetchContent_MakeAvailable(Catch2)
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-
+CPMAddPackage("gh:doctest/doctest#v2.5.3")
 add_executable(tests test.cpp)
-target_link_libraries(tests PRIVATE mat-json Catch2::Catch2 Catch2::Catch2WithMain)
+target_link_libraries(tests PRIVATE mat-json doctest::doctest)
 
-include(CTest)
-include(Catch)
-catch_discover_tests(tests)
+include("${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake")
+
+doctest_discover_tests(tests)

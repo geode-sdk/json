@@ -1,7 +1,7 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest.h>
+//
 #include <array>
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-#include <catch2/matchers/catch_matchers_all.hpp>
 #include <map>
 #include <matjson.hpp>
 #include <matjson/reflect_all.hpp>
@@ -61,7 +61,7 @@ TEST_CASE("Object basics") {
 }
 
 TEST_CASE("Struct serialization") {
-    CoolStruct foo{.name = "Hello!", .value = GENERATE(take(5, random(-100000, 100000)))};
+    CoolStruct foo{.name = "Hello!", .value = 12345};
 
     Value obj = foo;
 
@@ -712,7 +712,7 @@ TEST_CASE("Comments") {
 }
 
 TEST_CASE("Value after move") {
-    SECTION("Moving out the entire object") {
+    SUBCASE("Moving out the entire object") {
         matjson::Value value = matjson::parse("{\"hello\": \"world\"}").unwrap();
         matjson::Value newOne(std::move(value));
         REQUIRE(value.isNull());
@@ -723,7 +723,7 @@ TEST_CASE("Value after move") {
         REQUIRE(newOne.dump(0) == "{\"hello\":\"world\"}");
     }
 
-    SECTION("Moving out part of an object") {
+    SUBCASE("Moving out part of an object") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -741,7 +741,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value.dump(0) == R"({"hello":"world","sub":null,"bye":10})");
     }
 
-    SECTION("Moving out and assigning in its place") {
+    SUBCASE("Moving out and assigning in its place") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -753,7 +753,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == "hello");
     }
 
-    SECTION("Moving out and copying it somewhere else") {
+    SUBCASE("Moving out and copying it somewhere else") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -768,7 +768,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == nullptr);
     }
 
-    SECTION("Moving out and moving it somewhere else") {
+    SUBCASE("Moving out and moving it somewhere else") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -783,7 +783,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == nullptr);
     }
 
-    SECTION("Self move-assignment") {
+    SUBCASE("Self move-assignment") {
         matjson::Value value = matjson::parse(R"({"a": 123})").unwrap();
 
         value = std::move(value);
@@ -793,7 +793,7 @@ TEST_CASE("Value after move") {
 }
 
 TEST_CASE("Dummy value") {
-    SECTION("Does not get a key set on it") {
+    SUBCASE("Does not get a key set on it") {
         matjson::Value object;
         auto& dummy = std::as_const(object)["no_exist"];
         REQUIRE(dummy.isNull());
@@ -834,7 +834,7 @@ TEST_CASE("Float dump precision") {
 }
 
 TEST_CASE("Comparisons") {
-    SECTION("Object equality checks keys") {
+    SUBCASE("Object equality checks keys") {
         auto a = matjson::makeObject({{"a", 1}});
         auto b = matjson::makeObject({{"b", 1}});
         CHECK_FALSE(a == b);
@@ -842,7 +842,7 @@ TEST_CASE("Comparisons") {
         CHECK_FALSE(a == matjson::makeObject({{"a", 2}}));
     }
 
-    SECTION("Object ordering is irreflexive and consistent") {
+    SUBCASE("Object ordering is irreflexive and consistent") {
         auto a = matjson::makeObject({{"a", 1}});
         auto b = matjson::makeObject({{"b", 1}});
         CHECK_FALSE(a < a);
@@ -850,7 +850,7 @@ TEST_CASE("Comparisons") {
         CHECK((a > b) == (b < a));
     }
 
-    SECTION("Null ordering is irreflexive") {
+    SUBCASE("Null ordering is irreflexive") {
         matjson::Value n1 = nullptr, n2 = nullptr;
         CHECK_FALSE(n1 < n2);
         CHECK_FALSE(n1 > n2);
@@ -859,20 +859,20 @@ TEST_CASE("Comparisons") {
 }
 
 TEST_CASE("Max array/object nesting") {
-    SECTION("Parser rejects excessive nesting instead of crashing") {
+    SUBCASE("Parser rejects excessive nesting instead of crashing") {
         std::string deep(200000, '[');
         deep += std::string(200000, ']');
         auto res = matjson::parse(deep);
         CHECK(res.isErr());
     }
 
-    SECTION("Parser accepts nesting up to maxDepth") {
+    SUBCASE("Parser accepts nesting up to maxDepth") {
         matjson::ParseOpts opts{.maxDepth = 3};
         CHECK(matjson::parse("[[[1]]]", opts).isOk());
         CHECK(matjson::parse("[[[[1]]]]", opts).isErr());
     }
 
-    SECTION("Parser depth limit resets across sibling containers") {
+    SUBCASE("Parser depth limit resets across sibling containers") {
         matjson::ParseOpts opts{.maxDepth = 2};
         // many siblings at depth 2 must not accumulate depth
         CHECK(matjson::parse("[[1],[2],[3],[4],[5],[6]]", opts).isOk());
