@@ -7,6 +7,7 @@ set(SOURCE_FILES
     src/impl.cpp
     src/parser.cpp
     src/dump.cpp
+    src/iterator.cpp
 )
 
 if (NOT COMMAND CPMAddPackage)
@@ -17,6 +18,8 @@ if (NOT TARGET GeodeResult)
     CPMAddPackage("gh:geode-sdk/result@1.4.1")
 endif()
 
+CPMAddPackage("gh:Tessil/ordered-map#88b7a58f5e9be7f87998bbcbdd3865023738ef92")
+
 add_library(zmij src/external/zmij.cc)
 
 # This option is only useful for Geode itself
@@ -26,7 +29,7 @@ if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
     target_link_libraries(mat-json INTERFACE GeodeResult)
 
     add_library(mat-json-impl INTERFACE)
-    target_link_libraries(mat-json-impl INTERFACE mat-json zmij)
+    target_link_libraries(mat-json-impl INTERFACE mat-json zmij tsl::ordered_map)
     target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
 else()
     add_library(mat-json ${SOURCE_FILES})
@@ -34,7 +37,7 @@ else()
     target_compile_features(mat-json PUBLIC cxx_std_20)
 
     target_include_directories(mat-json PUBLIC include)
-    target_link_libraries(mat-json PUBLIC GeodeResult zmij)
+    target_link_libraries(mat-json PUBLIC GeodeResult zmij tsl::ordered_map)
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)

@@ -1,32 +1,18 @@
 #pragma once
 
+#include "matjson/iterator.hpp"
+#include "matjson/linkage.hpp"
+
 #include <Geode/Result.hpp>
 #include <initializer_list>
 #include <istream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#ifdef MAT_JSON_DYNAMIC
-    #if defined(_WIN32) && !defined(__CYGWIN__)
-        #ifdef MAT_JSON_EXPORTING
-            #define MAT_JSON_DLL __declspec(dllexport)
-        #else
-            #define MAT_JSON_DLL __declspec(dllimport)
-        #endif
-    #else
-        #ifdef MAT_JSON_EXPORTING
-            #define MAT_JSON_DLL [[gnu::visibility("default")]]
-        #else
-            #define MAT_JSON_DLL
-        #endif
-    #endif
-#else
-    #define MAT_JSON_DLL
-#endif
 
 namespace matjson {
 
@@ -110,7 +96,7 @@ namespace matjson {
 
         friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
         void setKey_(std::string_view key);
-        Value(ObjCtorTag, std::vector<Value>);
+        Value(ObjCtorTag, std::span<Value>);
 
     public:
         /// Defaults to a JSON object, for convenience
@@ -118,7 +104,7 @@ namespace matjson {
         Value(std::string value);
         Value(std::string_view value);
         Value(char const* value);
-        Value(std::vector<Value> value);
+        Value(std::vector<Value> array);
         Value(std::nullptr_t);
         Value(double value);
         Value(float value);
@@ -277,11 +263,11 @@ namespace matjson {
         /// @return The key of the object entry
         std::optional<std::string> getKey() const;
 
-        std::vector<Value>::iterator begin();
-        std::vector<Value>::iterator end();
+        ValueIterator begin();
+        ValueIterator end();
 
-        std::vector<Value>::const_iterator begin() const;
-        std::vector<Value>::const_iterator end() const;
+        ConstValueIterator begin() const;
+        ConstValueIterator end() const;
 
         bool isNull() const {
             return this->type() == Type::Null;
@@ -536,7 +522,7 @@ namespace matjson {
         for (auto& [key, value] : entries) {
             arr.emplace_back(std::move(value)).setKey_(key);
         }
-        return Value(Value::ObjCtorTag{}, std::move(arr));
+        return Value(Value::ObjCtorTag{}, arr);
     }
 
     // For fmtlib, lol

@@ -111,7 +111,7 @@ static void dumpImpl(Value const& value, std::string& out, int indentation, int 
                     }
                 }
             };
-            auto const& obj = impl.asArray();
+            auto const& obj = impl.asMap();
             if (obj.empty()) {
                 out.push_back('}');
                 break;

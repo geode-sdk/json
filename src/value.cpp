@@ -6,7 +6,7 @@ using namespace matjson;
 using namespace geode;
 
 Value::Value() {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{});
+    m_impl = std::make_unique<ValueImpl>(ObjCtorTag{}, std::span<Value>{});
 }
 
 Value::Value(char const* str) : Value(std::string(str)) {}
@@ -43,8 +43,8 @@ Value::Value(std::vector<Value> value) {
     m_impl = std::make_unique<ValueImpl>(Type::Array, std::move(value));
 }
 
-Value::Value(ObjCtorTag, std::vector<Value> value) {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, std::move(value));
+Value::Value(ObjCtorTag, std::span<Value> value) {
+    m_impl = std::make_unique<ValueImpl>(ObjCtorTag{}, value);
 }
 
 Value::Value(std::nullptr_t) {
@@ -73,7 +73,7 @@ Value::Value(Value&& other) noexcept {
 Value::~Value() {}
 
 Value Value::object() {
-    return Value(std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{}));
+    return Value(std::make_unique<ValueImpl>(ObjCtorTag{}, std::span<Value>{}));
 }
 
 Value Value::array() {
@@ -121,11 +121,10 @@ Result<Value const&> Value::get(std::string_view key) const {
     if (this->type() != Type::Object) {
         return Err("not an object");
     }
-    auto& arr = m_impl->asArray();
-    for (auto& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return Ok(value);
-        }
+    auto& map = m_impl->asMap();
+    auto it = map.find(std::string(key));
+    if (it != map.end()) {
+        return Ok(it.value());
     }
     return Err("key not found");
 }
@@ -149,15 +148,12 @@ Value& Value::operator[](std::string_view key) {
     if (this->type() != Type::Object) {
         return *getDummyNullValue();
     }
-    auto& arr = m_impl->asArray();
-    for (auto& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return value;
-        }
+    auto& map = m_impl->asMap();
+    auto [it, inserted] = map.try_emplace(std::string(key));
+    if (inserted) {
+        it.value().m_impl->setKey(std::string(key));
     }
-    arr.emplace_back(Value());
-    arr.back().m_impl->setKey(std::string(key));
-    return arr.back();
+    return it.value();
 }
 
 Value const& Value::operator[](std::string_view key) const {
@@ -182,15 +178,11 @@ void Value::set(std::string_view key, Value value) {
     if (this->type() != Type::Object) {
         return;
     }
-    (void)this->get(key)
-        .inspect([&value](Value& v) {
-            v = std::move(value);
-        })
-        .inspectErr([&](auto&&) {
-            auto& arr = m_impl->asArray();
-            arr.emplace_back(std::move(value));
-            arr.back().m_impl->setKey(std::string(key));
-        });
+    auto& map = m_impl->asMap();
+    auto [it, inserted] = map.insert_or_assign(std::string(key), std::move(value));
+    if (inserted) {
+        it.value().m_impl->setKey(std::string(key));
+    }
 }
 
 void Value::push(Value value) {
@@ -201,82 +193,71 @@ void Value::push(Value value) {
 }
 
 void Value::clear() {
-    if (this->type() != Type::Array && this->type() != Type::Object) {
-        return;
+    if (this->type() == Type::Array) {
+        m_impl->asArray().clear();
     }
-    m_impl->asArray().clear();
+    else if (this->type() == Type::Object) {
+        m_impl->asMap().clear();
+    }
 }
 
 bool Value::erase(std::string_view key) {
     if (this->type() != Type::Object) {
         return false;
     }
-    auto& arr = m_impl->asArray();
-    for (auto it = arr.begin(); it != arr.end(); ++it) {
-        if (it->m_impl->key().value() == key) {
-            it->m_impl->clearKey();
-            for (auto tit = it + 1; tit != arr.end(); ++tit) {
-                tit->m_impl.swap(it->m_impl);
-                ++it;
-            }
-            // "it" is now the last one, no funny moves happen
-            arr.erase(it);
-            return true;
-        }
-    }
-    return false;
+    auto& map = m_impl->asMap();
+    return map.erase(std::string(key)) == 1;
 }
 
 bool Value::contains(std::string_view key) const {
     if (this->type() != Type::Object) {
         return false;
     }
-    auto const& arr = m_impl->asArray();
-    for (auto const& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return true;
-        }
-    }
-    return false;
+    return m_impl->asMap().contains(std::string(key));
 }
 
 size_t Value::size() const {
-    if (this->type() != Type::Array && this->type() != Type::Object) {
+    if (this->type() == Type::Array) {
+        return m_impl->asArray().size();
+    }
+    else if (this->type() == Type::Object) {
+        return m_impl->asMap().size();
+    }
+    else {
         return 0;
     }
-    return m_impl->asArray().size();
 }
 
 Type Value::type() const {
     return m_impl->type();
 }
 
-std::vector<Value>::iterator Value::begin() {
+ValueIterator Value::begin() {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().begin();
+    return ValueIterator(m_impl.get(), true);
 }
 
-std::vector<Value>::iterator Value::end() {
+ValueIterator Value::end() {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().end();
+    return ValueIterator(m_impl.get(), false);
 }
 
-std::vector<Value>::const_iterator Value::begin() const {
+ConstValueIterator Value::begin() const {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().begin();
+    return ConstValueIterator(m_impl.get(), true);
 }
 
-std::vector<Value>::const_iterator Value::end() const {
+ConstValueIterator Value::end() const {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().end();
+    return ConstValueIterator(m_impl.get(), false);
 }
 
 std::optional<std::string> Value::getKey() const {

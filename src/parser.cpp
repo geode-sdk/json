@@ -419,10 +419,8 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) {
 
     GEODE_UNWRAP(stream.take());
     GEODE_UNWRAP(stream.skipWhitespace());
-    std::vector<Value> object;
+    OrderedMap object;
     GEODE_UNWRAP_INTO(char p, stream.peek());
-    // keeps track of the vector index of seen keys, incase we encounter a duplicate
-    std::unordered_map<std::string, std::size_t> seenKeys;
     if (p != '}') {
         while (true) {
             GEODE_UNWRAP(stream.skipWhitespace());
@@ -441,16 +439,8 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) {
             }
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
-            auto const [it, inserted] = seenKeys.try_emplace(key, object.size());
-            value->setKey(std::move(key));
-            auto entry = ValueImpl::asValue(std::move(value));
-            if (inserted) {
-                object.emplace_back(std::move(entry));
-            }
-            else {
-                // overwrite previously seen value with same key
-                object[it->second] = std::move(entry);
-            }
+            value->setKey(key);
+            object.insert_or_assign(key, ValueImpl::asValue(std::move(value)));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {

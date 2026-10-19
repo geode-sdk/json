@@ -3,16 +3,22 @@
 #include <algorithm>
 #include <cstdint>
 #include <matjson.hpp>
+#include <tsl/ordered_map.h>
 #include <variant>
 
 using std::intmax_t;
 using std::size_t;
 using std::uintmax_t;
 
+using OrderedMap = tsl::ordered_map<
+    std::string, matjson::Value, std::hash<std::string>, std::equal_to<std::string>,
+    std::allocator<std::pair<std::string, matjson::Value>>,
+    std::vector<std::pair<std::string, matjson::Value>>>;
+
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
-    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>, float>
+    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>, float, OrderedMap>
         m_value;
 
 public:
@@ -22,6 +28,15 @@ public:
     template <class T>
     ValueImpl(Type type, std::string key, T&& value) :
         m_type(type), m_key(std::move(key)), m_value(std::forward<T>(value)) {}
+
+    ValueImpl(Value::ObjCtorTag, std::span<Value> values) : m_type(Type::Object) {
+        auto& map = m_value.emplace<OrderedMap>();
+        for (auto& value : values) {
+            // this optional should never fail
+            auto key = value.m_impl->key().value_or({});
+            map.insert_or_assign(key, std::move(value));
+        }
+    }
 
     ValueImpl(ValueImpl const&) = default;
 
@@ -65,6 +80,14 @@ public:
         return std::get<std::vector<Value>>(m_value);
     }
 
+    OrderedMap& asMap() {
+        return std::get<OrderedMap>(m_value);
+    }
+
+    OrderedMap const& asMap() const {
+        return std::get<OrderedMap>(m_value);
+    }
+
     static ValueImpl& fromValue(Value const& value) {
         return *value.m_impl.get();
     }
@@ -98,24 +121,6 @@ public:
         else if (std::holds_alternative<float>(m_value))
             return static_cast<NumberType>(std::get<float>(m_value));
         else return static_cast<NumberType>(std::get<double>(m_value));
-    }
-
-    static bool objectEquals(std::vector<Value> const& a, std::vector<Value> const& b) {
-        if (a.size() != b.size()) return false;
-        return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](Value const& x, Value const& y) {
-            return fromValue(x).key() == fromValue(y).key() && x == y;
-        });
-    }
-
-    static bool objectLess(std::vector<Value> const& a, std::vector<Value> const& b) {
-        return std::lexicographical_compare(
-            a.begin(), a.end(), b.begin(), b.end(), [](Value const& x, Value const& y) {
-                auto const& kx = fromValue(x).key();
-                auto const& ky = fromValue(y).key();
-                if (kx != ky) return kx < ky;
-                return x < y;
-            }
-        );
     }
 
     template <class Op>
@@ -197,14 +202,14 @@ public:
 
     bool operator==(ValueImpl const& other) const {
         if (m_type != other.m_type) return false;
-        if (m_type == Type::Object) return objectEquals(asArray(), other.asArray());
+        if (m_type == Type::Object) return asMap() == other.asMap();
         return operatorImpl(other, std::equal_to<>{}, true, false);
     }
 
     bool operator<(ValueImpl const& other) const {
         if (m_type < other.m_type) return true;
         if (m_type > other.m_type) return false;
-        if (m_type == Type::Object) return objectLess(asArray(), other.asArray());
+        if (m_type == Type::Object) return asMap() < other.asMap();
         return operatorImpl(other, std::less<>{}, false, false);
     }
 
