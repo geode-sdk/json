@@ -1,28 +1,17 @@
 #pragma once
 
+#include "matjson/linkage.hpp"
+
 #include <Geode/Result.hpp>
+#include <initializer_list>
 #include <istream>
 #include <memory>
+#include <optional>
+#include <span>
+#include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
-
-#ifdef MAT_JSON_DYNAMIC
-    #if defined(_WIN32) && !defined(__CYGWIN__)
-        #ifdef MAT_JSON_EXPORTING
-            #define MAT_JSON_DLL __declspec(dllexport)
-        #else
-            #define MAT_JSON_DLL __declspec(dllimport)
-        #endif
-    #else
-        #ifdef MAT_JSON_EXPORTING
-            #define MAT_JSON_DLL [[gnu::visibility("default")]]
-        #else
-            #define MAT_JSON_DLL
-        #endif
-    #endif
-#else
-    #define MAT_JSON_DLL
-#endif
 
 namespace matjson {
 
@@ -38,12 +27,15 @@ namespace matjson {
     class ValueImpl;
 
     class Value;
+    class ValueIterator;
+    class ConstValueIterator;
 
     struct ParseError {
         std::string message;
-        int offset = 0, line = 0, column = 0;
+        std::size_t offset = 0;
+        int line = 0, column = 0;
 
-        inline ParseError(std::string msg, int offset, int line, int column) :
+        inline ParseError(std::string msg, std::size_t offset, int line, int column) :
             message(std::move(msg)), offset(offset), line(line), column(column) {}
 
         /// Returns a string representation of the error, useful for coercing into Result<T>
@@ -90,8 +82,10 @@ namespace matjson {
         bool comments = false;
         /// Allows trailing commas
         bool trailingCommas = false;
+        /// Maximum nesting depth for arrays and objects
+        int maxDepth = 256;
 
-        char _reserved[16];
+        char _reserved[16]{};
     };
 
     class MAT_JSON_DLL Value {
@@ -99,9 +93,11 @@ namespace matjson {
         friend ValueImpl;
         Value(std::unique_ptr<ValueImpl>);
 
+        struct ObjCtorTag {};
+
         friend Value matjson::makeObject(std::initializer_list<std::pair<std::string, Value>>);
         void setKey_(std::string_view key);
-        Value(std::vector<Value>, bool);
+        Value(ObjCtorTag, std::span<Value>);
 
     public:
         /// Defaults to a JSON object, for convenience
@@ -109,9 +105,10 @@ namespace matjson {
         Value(std::string value);
         Value(std::string_view value);
         Value(char const* value);
-        Value(std::vector<Value> value);
+        Value(std::vector<Value> array);
         Value(std::nullptr_t);
         Value(double value);
+        Value(float value);
         Value(bool value);
         explicit Value(std::intmax_t value);
         explicit Value(std::uintmax_t value);
@@ -136,7 +133,8 @@ namespace matjson {
         Value(Value&&) noexcept;
         ~Value();
 
-        Value& operator=(Value);
+        Value& operator=(Value const&);
+        Value& operator=(Value&&);
 
         bool operator==(Value const&) const;
         bool operator<(Value const&) const;
@@ -266,11 +264,11 @@ namespace matjson {
         /// @return The key of the object entry
         std::optional<std::string> getKey() const;
 
-        std::vector<Value>::iterator begin();
-        std::vector<Value>::iterator end();
+        ValueIterator begin();
+        ValueIterator end();
 
-        std::vector<Value>::const_iterator begin() const;
-        std::vector<Value>::const_iterator end() const;
+        ConstValueIterator begin() const;
+        ConstValueIterator end() const;
 
         bool isNull() const {
             return this->type() == Type::Null;
@@ -301,6 +299,11 @@ namespace matjson {
         /// @note This is useful for checking if the number is an integer or a double.
         bool isExactlyDouble() const;
 
+        /// Returns true if the number stored is a float, false otherwise.
+        /// This depends on how the value is stored internally.
+        /// @note This is useful for checking if the number is an integer or a double.
+        bool isExactlyFloat() const;
+
         /// Returns true if the number stored is a signed integer, false otherwise.
         /// This depends on how the value is stored internally.
         /// @note This is useful for checking if the number is an integer or a double.
@@ -311,25 +314,29 @@ namespace matjson {
         /// @note This is useful for checking if the number is an integer or a double.
         bool isExactlyUInt() const;
 
-        /// Returns the number as a boolean, if this is a boolean.
+        /// Returns the value as a boolean, if this is a boolean.
         /// If this is not a boolean, returns an error.
         geode::Result<bool> asBool() const;
 
-        /// Returns the number as a string, if this is a string.
+        /// Returns the value as a string, if this is a string.
         /// If this is not a string, returns an error.
         geode::Result<std::string> asString() const;
 
-        /// Returns the number as a signed integer, if this is a number.
+        /// Returns the value as a signed integer, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<std::intmax_t> asInt() const;
 
-        /// Returns the number as an unsigned integer, if this is a number.
+        /// Returns the value as an unsigned integer, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<std::uintmax_t> asUInt() const;
 
-        /// Returns the number as a double, if this is a number.
+        /// Returns the value as a double, if this is a number.
         /// If this is not a number, returns an error.
         geode::Result<double> asDouble() const;
+
+        /// Returns the value as a float, if this is a number.
+        /// If this is not a number, returns an error.
+        geode::Result<float> asFloat() const;
 
         /// Returns a reference to the array, if this is an array.
         /// If this is not an array, returns an error.
@@ -365,9 +372,14 @@ namespace matjson {
                 }
             }
             else if constexpr (std::is_floating_point_v<T>) {
-                return this->asDouble().map([](double v) -> T {
-                    return static_cast<T>(v);
-                });
+                if constexpr (std::is_same_v<std::remove_cvref_t<T>, float>) {
+                    return this->asFloat();
+                }
+                else {
+                    return this->asDouble().map([](double v) -> T {
+                        return static_cast<T>(v);
+                    });
+                }
             }
             else if constexpr (CanDeserialize<T>) {
                 return Serialize<std::remove_cvref_t<T>>::fromJson(*this);
@@ -494,12 +506,12 @@ namespace matjson {
     // This is used internally by C++ when destructuring the value, useful for range for loops:
     // > for (auto const& [key, value] : object) { ... }
     template <std::size_t Index, class T>
-        requires requires { std::is_same_v<std::decay_t<T>, Value>; }
+        requires std::is_same_v<std::decay_t<T>, Value>
     decltype(auto) get(T&& value) {
         if constexpr (Index == 0) {
-            auto const opt = value.getKey();
+            auto opt = value.getKey();
             if (!opt) return std::string();
-            return std::string(*opt);
+            return std::string(std::move(*opt));
         }
         else if constexpr (Index == 1) {
             return std::forward<T>(value);
@@ -508,10 +520,10 @@ namespace matjson {
 
     inline Value makeObject(std::initializer_list<std::pair<std::string, Value>> entries) {
         std::vector<Value> arr;
-        for (auto const& [key, value] : entries) {
+        for (auto& [key, value] : entries) {
             arr.emplace_back(value).setKey_(key);
         }
-        return Value(std::move(arr), true);
+        return Value(Value::ObjCtorTag{}, arr);
     }
 
     // For fmtlib, lol
@@ -537,3 +549,6 @@ template <>
 struct std::tuple_element<1, matjson::Value> {
     using type = matjson::Value;
 };
+
+// intentional
+#include "matjson/iterator.hpp"

@@ -13,7 +13,7 @@ struct matjson::Serialize<T> {
         reflect::for_each<T>([&](auto N) {
             if (error) return;
             auto& field = reflect::get<N>(value);
-            static constexpr auto fieldName = reflect::member_name<N>(value);
+            auto const fieldName = reflect::member_name<N>(value);
 
             if (!json.contains(fieldName)) {
                 error = "field `" + std::string(fieldName) + "` is missing";
@@ -35,7 +35,7 @@ struct matjson::Serialize<T> {
             field = std::move(result).unwrap();
         });
         if (error) return geode::Err(*error);
-        return geode::Ok(value);
+        return geode::Ok(std::move(value));
     }
 
     static matjson::Value toJson(T const& value) {

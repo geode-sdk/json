@@ -1,17 +1,92 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <matjson.hpp>
+#include <tsl/ordered_map.h>
+#include <utility>
 #include <variant>
 
 using std::intmax_t;
 using std::size_t;
 using std::uintmax_t;
 
+// stolen from geode sorry
+
+inline uint64_t fnv1aHash(std::string_view str) {
+    uint64_t hash = 0xcbf29ce484222325;
+    for (char c : str) {
+        hash ^= c;
+        hash *= 0x100000001b3;
+    }
+    return hash;
+}
+
+struct StringHash {
+    using is_transparent = void;
+
+    size_t operator()(std::string_view str) const {
+        return fnv1aHash(str);
+    }
+
+    size_t operator()(std::string const& str) const {
+        return fnv1aHash(str);
+    }
+};
+
+using OrderedMap = tsl::ordered_map<
+    std::string, matjson::Value, StringHash, std::equal_to<>,
+    std::allocator<std::pair<std::string, matjson::Value>>,
+    std::vector<std::pair<std::string, matjson::Value>>>;
+
+template <class T, class U>
+std::partial_ordering compareIntInt(T a, U b) {
+    if (std::cmp_equal(a, b)) return std::partial_ordering::equivalent;
+    return std::cmp_less(a, b) ? std::partial_ordering::less : std::partial_ordering::greater;
+}
+
+template <class I>
+std::partial_ordering compareIntDouble(I i, double d) {
+    if (std::isnan(d)) return std::partial_ordering::unordered;
+    if (double(i) == d) return std::partial_ordering::equivalent;
+    return double(i) < d ? std::partial_ordering::less : std::partial_ordering::greater;
+}
+
+template <class T, class U>
+std::partial_ordering compareNumbers(T a, U b) {
+    if constexpr (std::is_integral_v<T> && std::is_integral_v<U>) {
+        return compareIntInt(a, b);
+    }
+    else if constexpr (std::is_integral_v<T>) {
+        // T is int, U is float
+        return compareIntDouble(a, b);
+    }
+    else if constexpr (std::is_integral_v<U>) {
+        // T is float, U is int
+        auto res = compareIntDouble(b, a);
+        if (res == std::partial_ordering::less) return std::partial_ordering::greater;
+        if (res == std::partial_ordering::greater) return std::partial_ordering::less;
+        return res;
+    }
+    else {
+        return a <=> b;
+    }
+}
+
+template <class T>
+concept Numerical =
+    !std::is_same_v<T, bool> && (std::is_integral_v<T> || std::is_floating_point_v<T>);
+
+template <class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
+
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
-    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>> m_value;
+    std::variant<std::monostate, std::string, double, intmax_t, uintmax_t, bool, std::vector<Value>, float, OrderedMap>
+        m_value;
 
 public:
     template <class T>
@@ -20,6 +95,17 @@ public:
     template <class T>
     ValueImpl(Type type, std::string key, T&& value) :
         m_type(type), m_key(std::move(key)), m_value(std::forward<T>(value)) {}
+
+    ValueImpl(Value::ObjCtorTag, std::span<Value> values) : m_type(Type::Object) {
+        auto& map = m_value.emplace<OrderedMap>();
+        for (auto& value : values) {
+            // a null m_impl means a plain null without a key, which should never
+            // happen here, but fall back to an empty key just incase
+            std::string key;
+            if (value.m_impl && value.m_impl->key()) key = *value.m_impl->key();
+            map.insert_or_assign(std::move(key), std::move(value));
+        }
+    }
 
     ValueImpl(ValueImpl const&) = default;
 
@@ -47,11 +133,15 @@ public:
         return Value(std::move(impl));
     }
 
+    static std::unique_ptr<ValueImpl> makeKeyedNull(std::string key) {
+        return std::make_unique<ValueImpl>(Type::Null, std::move(key), std::monostate{});
+    }
+
     bool asBool() const {
         return std::get<bool>(m_value);
     }
 
-    std::string asString() const {
+    std::string const& asString() const {
         return std::get<std::string>(m_value);
     }
 
@@ -61,6 +151,14 @@ public:
 
     std::vector<Value> const& asArray() const {
         return std::get<std::vector<Value>>(m_value);
+    }
+
+    OrderedMap& asMap() {
+        return std::get<OrderedMap>(m_value);
+    }
+
+    OrderedMap const& asMap() const {
+        return std::get<OrderedMap>(m_value);
     }
 
     static ValueImpl& fromValue(Value const& value) {
@@ -73,6 +171,10 @@ public:
 
     bool isDouble() const {
         return std::holds_alternative<double>(m_value);
+    }
+
+    bool isFloat() const {
+        return std::holds_alternative<float>(m_value);
     }
 
     bool isInt() const {
@@ -89,83 +191,58 @@ public:
             return static_cast<NumberType>(std::get<intmax_t>(m_value));
         else if (std::holds_alternative<uintmax_t>(m_value))
             return static_cast<NumberType>(std::get<uintmax_t>(m_value));
+        else if (std::holds_alternative<float>(m_value))
+            return static_cast<NumberType>(std::get<float>(m_value));
         else return static_cast<NumberType>(std::get<double>(m_value));
     }
 
     template <class Op>
-    bool operatorImpl(ValueImpl const& other, Op&& operation, bool null, bool fall) const {
+    bool operatorImpl(ValueImpl const& other, Op&& operation) const {
         switch (m_type) {
-            case Type::Null: return null;
             case Type::Bool: return operation(asBool(), other.asBool());
             case Type::String: return operation(asString(), other.asString());
-            case Type::Object:
             case Type::Array: return operation(asArray(), other.asArray());
-            case Type::Number: {
-                static constexpr auto INDEX_DOUBLE = 2;
-                static constexpr auto INDEX_INT = 3;
-                static constexpr auto INDEX_UINT = 4;
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_DOUBLE, std::remove_cvref_t<decltype(m_value)>>,
-                              double>);
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_INT, std::remove_cvref_t<decltype(m_value)>>,
-                              std::intmax_t>);
-                static_assert(std::is_same_v<
-                              std::variant_alternative_t<INDEX_UINT, std::remove_cvref_t<decltype(m_value)>>,
-                              std::uintmax_t>);
-                auto const asDouble = [](auto const& value) {
-                    return std::get<double>(value.m_value);
-                };
-                auto const asInt = [](auto const& value) {
-                    return std::get<std::intmax_t>(value.m_value);
-                };
-                auto const asUInt = [](auto const& value) {
-                    return std::get<std::uintmax_t>(value.m_value);
-                };
-                switch (m_value.index()) {
-                    case INDEX_DOUBLE:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asDouble(*this), asDouble(other));
-                            case INDEX_INT: return operation(asDouble(*this), asInt(other));
-                            case INDEX_UINT: return operation(asDouble(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    case INDEX_INT:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asInt(*this), asDouble(other));
-                            case INDEX_INT: return operation(asInt(*this), asInt(other));
-                            case INDEX_UINT: return operation(asInt(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    case INDEX_UINT:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asUInt(*this), asDouble(other));
-                            case INDEX_INT: return operation(asUInt(*this), asInt(other));
-                            case INDEX_UINT: return operation(asUInt(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    default: return fall;
-                }
-            }
-            default: return fall;
+            case Type::Object: return operation(asMap(), other.asMap());
+            // handled outside of operatorImpl
+            case Type::Null:
+            case Type::Number:
+            default: return false;
         }
+    }
+
+    std::partial_ordering compareNumbers(ValueImpl const& other) const {
+        return std::visit(
+            overloaded{
+                [&](Numerical auto const& a, Numerical auto const& b) {
+                    return ::compareNumbers(a, b);
+                },
+                [](auto const&, auto const&) {
+                    // irrelevant
+                    return std::partial_ordering::unordered;
+                }
+            },
+            m_value,
+            other.m_value
+        );
     }
 
     bool operator==(ValueImpl const& other) const {
         if (m_type != other.m_type) return false;
-        return operatorImpl(other, std::equal_to<>{}, true, false);
+        if (m_type == Type::Null) return true;
+        if (m_type == Type::Number) {
+            return this->compareNumbers(other) == 0;
+        }
+        return operatorImpl(other, std::equal_to<>{});
     }
 
     bool operator<(ValueImpl const& other) const {
         if (m_type < other.m_type) return true;
         if (m_type > other.m_type) return false;
-        return operatorImpl(other, std::less<>{}, true, false);
-    }
-
-    bool operator>(ValueImpl const& other) const {
-        if (m_type > other.m_type) return true;
-        if (m_type < other.m_type) return false;
-        return operatorImpl(other, std::greater<>{}, false, false);
+        if (m_type == Type::Null) return false;
+        if (m_type == Type::Number) {
+            return this->compareNumbers(other) < 0;
+        }
+        return operatorImpl(other, std::less<>{});
     }
 };
 
@@ -173,4 +250,5 @@ using ValuePtr = std::unique_ptr<matjson::ValueImpl>;
 
 matjson::Value* getDummyNullValue();
 
-#define CHECK_DUMMY_NULL (this->m_impl == getDummyNullValue()->m_impl)
+// Every plain null has an empty m_impl, so the dummy has to be identified by address
+#define CHECK_DUMMY_NULL (this == getDummyNullValue())

@@ -23,9 +23,9 @@
 //
 #if 0
 // -->
-[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ) / [Resources](#Resources)
 
-## REFLECT: C++20 Static Reflection library
+## `reflect`: C++20 Static Reflection library
 
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://img.shields.io/github/v/release/qlibs/reflect)](https://github.com/qlibs/reflect/releases)
@@ -36,7 +36,7 @@
 
 ### Features
 
-- Single header (https://raw.githubusercontent.com/qlibs/reflect/main/reflect - for integration see [FAQ](#faq))
+- Single header (https://raw.githubusercontent.com/qlibs/reflect/main/reflect) / C++20 module (https://github.com/qlibs/reflect/blob/main/reflect.cppm)
 - Minimal [API](#api)
 - Verifies itself upon include (can be disabled with `-DNTEST` - see [FAQ](#faq))
     - Basically guarantees no UB, no memory leaks*
@@ -48,8 +48,6 @@
 ### Requirements
 
 - C++20 ([gcc-12+, clang-15+, msvc-19.36+](https://godbolt.org/z/xPc19Moef))
-
----
 
 ### Overview
 
@@ -95,21 +93,19 @@ static_assert(B  == std::get<1>(t));
 
 int main() {
   reflect::for_each([](auto I) {
-    std::print("{}.{}:{}={} ({}/{}/{})\n",
-        reflect::type_name(f),                  // foo, foo
-        reflect::member_name<I>(f),             // a  , b
-        reflect::type_name(reflect::get<I>(f)), // int, E
-        reflect::get<I>(f),                     // 42 , B
-        reflect::size_of<I>(f),                 // 4  , 4
-        reflect::align_of<I>(f),                // 4  , 4
-        reflect::offset_of<I>(f));              // 0  , 4
+    std::println("{}.{}:{}={} ({}/{}/{})",
+      reflect::type_name(f),                  // foo, foo
+      reflect::member_name<I>(f),             // a  , b
+      reflect::type_name(reflect::get<I>(f)), // int, E
+      int(reflect::get<I>(f)),                // 42 , B
+      reflect::size_of<I>(f),                 // 4  , 4
+      reflect::align_of<I>(f),                // 4  , 4
+      reflect::offset_of<I>(f));              // 0  , 4
   }, f);
 }
 
 // and more (see API)...
 ```
-
----
 
 ### Examples
 
@@ -117,8 +113,6 @@ int main() {
 - [feature] Meta-programming (https://github.com/qlibs/mp) - https://godbolt.org/z/ds3KMGhqP
 - [future] Structured Bindings can introduce a Pack (https://wg21.link/P1061) - https://godbolt.org/z/Ga3bc3KKW
 - [performance] Minimal Perfect Hashing based `enum_name` (https://github.com/qlibs/mph) - https://godbolt.org/z/WM155vTfv
-
----
 
 <a name="perf"></a>
 ### Performance
@@ -197,13 +191,11 @@ time clang++-17 -x c++ -std=c++20 reflect -c -DNTEST # 0.119s
 time clang++-17 -x c++ -std=c++20 reflect -c         # 0.322s
 ```
 
----
-
 ### API
 
 ```cpp
-template <class Fn, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto visit(Fn&& fn, T&& t) noexcept;
+template <class Fn, class T>
+[[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t);
 ```
 
 ```cpp
@@ -212,11 +204,11 @@ static_assert(2 == visit([](auto&&... args) { return sizeof...(args); }, foo{}))
 ```
 
 ```cpp
-template<class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto size() -> std::size_t;
+template <class T>
+[[nodiscard]] constexpr auto size() noexcept -> std::size_t;
 
-template<class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto size(const T&) -> std::size_t;
+template <class T>
+[[nodiscard]] constexpr auto size(const T&) noexcept -> std::size_t;
 ```
 
 ```cpp
@@ -226,8 +218,11 @@ static_assert(2 == size(f));
 ```
 
 ```cpp
-template <class T> [[nodiscard]] constexpr auto type_name() noexcept;
-template <class T> [[nodiscard]] constexpr auto type_name(const T&) noexcept;
+template <class T>
+[[nodiscard]] constexpr auto type_name() noexcept -> std::string_view;
+
+template <class T>
+[[nodiscard]] constexpr auto type_name(const T&) noexcept -> std::string_view;
 ```
 
 ```cpp
@@ -237,8 +232,11 @@ static_assert(std::string_view{"foo"} == type_name(foo{}));
 ```
 
 ```cpp
-template <class T> [[nodiscard]] constexpr auto type_id() noexcept;
-template <class T> [[nodiscard]] constexpr auto type_id(T&&) noexcept;
+template <class T>
+[[nodiscard]] constexpr auto type_id() noexcept;
+
+template <class T>
+[[nodiscard]] constexpr auto type_id(const T&) noexcept;
 ```
 
 ```cpp
@@ -249,21 +247,20 @@ static_assert(type_id(bar{}) != type_id<foo>());
 ```
 
 ```cpp
-template<class E>
-[[nodiscard]] constexpr auto to_underlying(const E e) noexcept;
+template <class E>
+[[nodiscard]] constexpr auto to_underlying(E e) noexcept;
 
-template<class E> requires std::is_enum_v<E>
-consteval auto enum_min(const E = {}) { return REFLECT_ENUM_MIN; }
+template <class E>
+[[nodiscard]] consteval auto enum_min(E) { return REFLECT_ENUM_MIN; }
 
-template<class E> requires std::is_enum_v<E>
-consteval auto enum_max(const E = {}) { return REFLECT_ENUM_MAX; }
+template <class E>
+[[nodiscard]] consteval auto enum_max(E) { return REFLECT_ENUM_MAX; }
 
-template<class E,
-         fixed_string unknown = "",
-         auto Min = enum_min(E{}),
-         auto Max = enum_max(E{})>
-  requires (std::is_enum_v<E> and Max > Min)
-[[nodiscard]] constexpr auto enum_name(const E e) noexcept -> std::string_view {
+template <class E,
+          fixed_string unknown = "",
+          auto Min = enum_min(E{}),
+          auto Max = enum_max(E{})>
+[[nodiscard]] constexpr auto enum_name(E e) noexcept -> std::string_view;
 ```
 
 ```cpp
@@ -283,8 +280,10 @@ static_assert(std::string_view{"bar"} == enum_name(Enum::bar));
 
 ```cpp
 template <std::size_t N, class T>
-  requires (std::is_aggregate_v<T> and N < size<T>())
-[[nodiscard]] constexpr auto member_name(const T& = {}) noexcept;
+[[nodiscard]] constexpr auto member_name() noexcept -> std::string_view;
+
+template <std::size_t N, class T>
+[[nodiscard]] constexpr auto member_name(const T&) noexcept -> std::string_view;
 ```
 
 ```cpp
@@ -296,22 +295,20 @@ static_assert(std::string_view{"b"} == member_name<1>(foo{}));
 ```
 
 ```cpp
-template<std::size_t N, class T>
-  requires (std::is_aggregate_v<std::remove_cvref_t<T>> and
-            N < size<std::remove_cvref_t<T>>())
+template <std::size_t N, class T>
 [[nodiscard]] constexpr decltype(auto) get(T&& t) noexcept;
 ```
 
 ```cpp
-struct foo { int a; bool b; };
+struct foo { int i; bool b; };
 constexpr auto f = foo{.i=42, .b=true};
 static_assert(42 == get<0>(f));
 static_assert(true == get<1>(f));
 ```
 
 ```cpp
-template <class T, fixed_string Name> requires std::is_aggregate_v<T>
-concept has_member_name = /*unspecified*/
+template <class T, fixed_string Name>
+concept has_member_name = /*unspecified*/;
 ```
 
 ```cpp
@@ -322,21 +319,34 @@ static_assert(not has_member_name<foo, "c">);
 ```
 
 ```cpp
-template<fixed_string Name, class T> requires has_member_name<T, Name>
-constexpr decltype(auto) get(T&& t) noexcept;
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto index_of() noexcept -> std::size_t;
+
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto index_of(const T&) noexcept -> std::size_t;
 ```
 
 ```cpp
 struct foo { int a; int b; };
+static_assert(0 == index_of<"a", foo>());
+static_assert(1 == index_of<"b">(foo{}));
+```
+
+```cpp
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr decltype(auto) get(T&& t) noexcept;
+```
+
+```cpp
+struct foo { int i; bool b; };
 constexpr auto f = foo{.i=42, .b=true};
-static_assert(42 == get<"a">(f));
+static_assert(42 == get<"i">(f));
 static_assert(true == get<"b">(f));
 ```
 
 ```cpp
-template<fixed_string... Members, class TSrc, class TDst>
-  requires (std::is_aggregate_v<TSrc> and std::is_aggregate_v<TDst>)
-constexpr auto copy(const TSrc& src, TDst& dst) noexcept -> void;
+template <fixed_string... Members, class TSrc, class TDst>
+constexpr auto copy(const TSrc& src, TDst& dst) -> void;
 ```
 
 ```cpp
@@ -356,9 +366,8 @@ assert(0 == b.b);
 ```
 
 ```cpp
-template<template<class...> class R, class T>
-  requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto to(T&& t) noexcept;
+template <template <class...> class R, class T>
+[[nodiscard]] constexpr auto to(T&& t);
 ```
 
 ```cpp
@@ -377,7 +386,7 @@ assert(42 == std::get<1>(t) and 42 == f.b);
 ```
 
 ```cpp
-template<class R, class T>
+template <class R, class T>
 [[nodiscard]] constexpr auto to(T&& t);
 ```
 
@@ -390,43 +399,62 @@ assert(4 == b.a and 0 == b.c);
 ```
 
 ```cpp
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
+template <std::size_t N, class T>
 [[nodiscard]] constexpr auto size_of() -> std::size_t;
 
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto size_of(T&&) -> std::size_t;
+template <std::size_t N, class T>
+[[nodiscard]] constexpr auto size_of(const T&) -> std::size_t;
 
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto size_of() -> std::size_t;
+
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto size_of(const T&) -> std::size_t;
+
+template <std::size_t N, class T>
 [[nodiscard]] constexpr auto align_of() -> std::size_t;
 
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto align_of(T&&) -> std::size_t;
+template <std::size_t N, class T>
+[[nodiscard]] constexpr auto align_of(const T&) -> std::size_t;
 
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto align_of() -> std::size_t;
+
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto align_of(const T&) -> std::size_t;
+
+template <std::size_t N, class T>
 [[nodiscard]] constexpr auto offset_of() -> std::size_t;
 
-template<std::size_t N, class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto offset_of(T&&) -> std::size_t;
+template <std::size_t N, class T>
+[[nodiscard]] constexpr auto offset_of(const T&) -> std::size_t;
+
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto offset_of() -> std::size_t;
+
+template <fixed_string Name, class T>
+[[nodiscard]] constexpr auto offset_of(const T&) -> std::size_t;
 ```
 
 ```cpp
-struct foo { int a; bool b; };
+struct foo { int a; bool b; short c; };
 
 static_assert(4 == size_of<0, foo>());
 static_assert(1 == size_of<1, foo>());
+static_assert(2 == size_of<"c", foo>());
 static_assert(4 == align_of<0, foo>());
 static_assert(1 == align_of<1, foo>());
+static_assert(2 == align_of<"c", foo>());
 static_assert(0 == offset_of<0, foo>());
 static_assert(4 == offset_of<1, foo>());
+static_assert(6 == offset_of<"c", foo>());
 ```
 
 ```cpp
-template<class T, class Fn>
-  requires std::is_aggregate_v<std::remove_cvref_t<T>>
+template <class T, class Fn>
 constexpr auto for_each(Fn&& fn) -> void;
 
-template<class Fn, class T>
-  requires std::is_aggregate_v<std::remove_cvref_t<T>>
+template <class Fn, class T>
 constexpr auto for_each(Fn&& fn, T&& t) -> void;
 ```
 
@@ -447,70 +475,61 @@ reflect::for_each([&f](const auto I) {
                                 // For example: `-DREFLECT_ENUM_MAX=32`
 ```
 
----
-
 ### FAQ
 
-- How does `reflect` compare to https://wg21.link/P2996?
+> - How does `reflect` compare to https://wg21.link/P2996?
+>
+>   `reflect` library only provides basic reflection primitives, mostly via hacks and workarounds to deal with lack of the reflection.
+>   https://wg21.link/P2996 is a language proposal with many more features and capabilities.
+>
+> - How does `reflect` work under the hood?
+>
+>   There are many different ways to implement reflection. `reflect` uses C++20's structure bindings, concepts and source_location to do it. See `visit` implementation for more details.
+>
+> - How can `reflect` be agnostic to compiler changes?
+>
+>   `reflect` precomputes required prefixes/postfixes to find required names from the `source_location::function_name()` output for each compiler upon inclusion.
+>   Any compiler change will end up with new prefixes/postfixes and wont require additional maintenance.
+>
+> - What does it mean that `reflect` tests itself upon include?
+>
+>   `reflect` runs all tests (via static_asserts) upon include. If the include compiles it means all tests are passing and the library works correctly on given compiler, environment.
+>
+> - What is compile-time overhead of `reflect` library?
+>
+>   `reflect` include takes ~.2s (that includes running all tests).
+>   The most expensive calls are `visit` and `enum_to_name` whose timing will depend on the number of reflected elements and/or min/max values provided.
+>   There are no recursive template instantiations in the library.
+>
+> - Can I disable running tests at compile-time for faster compilation times?
+>
+>   When `-DNTEST` is defined static_asserts tests wont be executed upon inclusion.
+>   Note: Use with caution as disabling tests means that there are no guarantees upon inclusion that the given compiler/env combination works as expected.
+>
+> - How to extend the number of members to be reflected (default: 64)?
+>
+>   Override `visit`, for example - https://godbolt.org/z/Ga3bc3KKW
+>
+>   ```cpp
+>   template <class Fn, class T> // requires https://wg21.link/P1061
+>   [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t) {
+>     auto&& [... ts] = std::forward<T>(t);
+>     return std::forward<Fn>(fn)(std::forward_like<T>(ts)...);
+>   }
+>   ```
+>
+> - Similar projects?
+>   [boost.pfr](https://github.com/boostorg/pfr), [glaze](https://github.com/stephenberry/glaze), [reflect-cpp](https://github.com/getml/reflect-cpp), [magic_enum](https://github.com/Neargye/magic_enum)
 
-    > `reflect` library only provides basic reflection primitives, mostly via hacks and workarounds to deal with lack of the reflection.
-    https://wg21.link/P2996 is a language proposal with many more features and capabilities.
+### Resources
 
-- How does `reflect` work under the hood?
+> - Reflection for C++26 - https://wg21.link/P2996
+> - Static Reflection - https://wg21.link/P0385
 
-    > There are many different ways to implement reflection. `reflect` uses C++20's structure bindings, concepts and source_location to do it. See `visit` implementation for more details.
+### License
 
-- How can `reflect` be agnostic to compiler changes?
+> - [MIT](LICENSE)
 
-    > `reflect` precomputes required prefixes/postfixes to find required names from the `source_location::function_name()` output for each compiler upon inclusion.
-    Any compiler change will end up with new prefixes/postfixes and wont require additional maintenance.
-
-- What does it mean that `reflect` tests itself upon include?
-
-    > `reflect` runs all tests (via static_asserts) upon include. If the include compiles it means all tests are passing and the library works correctly on given compiler, environment.
-
-- What is compile-time overhead of `reflect` library?
-
-    > `reflect` include takes ~.2s (that includes running all tests).
-    The most expensive calls are `visit` and `enum_to_name` whose timing will depend on the number of reflected elements and/or min/max values provided.
-    There are no recursive template instantiations in the library.
-
-- Can I disable running tests at compile-time for faster compilation times?
-
-    > When `-DNTEST` is defined static_asserts tests wont be executed upon inclusion.
-    Note: Use with caution as disabling tests means that there are no guarantees upon inclusion that the given compiler/env combination works as expected.
-
-- How to extend the number of members to be reflected (default: 64)?
-
-    > Override `visit`, for example - https://godbolt.org/z/Ga3bc3KKW
-
-    ```cpp
-    template <class Fn, class T> // requires https://wg21.link/P1061
-    [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t) noexcept {
-      auto&& [... ts] = std::forward<T>(t);
-      return std::forward<Fn>(fn)(std::forward_like<T>(ts)...);
-    }
-    ```
-
-- How to integrate with [CMake.FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html)?
-
-    ```
-    include(FetchContent)
-
-    FetchContent_Declare(
-      qlibs.reflect
-      GIT_REPOSITORY https://github.com/qlibs/reflect
-      GIT_TAG v1.2.4
-    )
-
-    FetchContent_MakeAvailable(qlibs.reflect)
-    ```
-
-    ```
-    target_link_libraries(${PROJECT_NAME} PUBLIC qlibs.reflect);
-    ```
-- Similar projects?
-    > [boost.pfr](https://github.com/boostorg/pfr), [glaze](https://github.com/stephenberry/glaze), [reflect-cpp](https://github.com/getml/reflect-cpp), [magic_enum](https://github.com/Neargye/magic_enum)
 <!--
 #endif
 
@@ -542,24 +561,19 @@ template<> struct REFLECT_FWD_LIKE<true> { template<class T> using type = std::r
 #define REFLECT_FWD_LIKE(T, ...) static_cast<typename ::REFLECT_FWD_LIKE<::std::is_lvalue_reference_v<T>>::template type<decltype(__VA_ARGS__)>>(__VA_ARGS__)
 struct  REFLECT_STRUCT { void* MEMBER; enum class ENUM { VALUE }; }; // has to be in the global namespace
 
-namespace reflect::inline v1_2_4 {
+namespace reflect::inline v1_2_5 {
 namespace detail {
 template<class T> extern const T ext{};
 struct any { template<class T> operator T() const noexcept; };
 template<class T> struct any_except_base_of { template<class U> requires (not std::is_base_of_v<U, T>) operator U() const noexcept; };
-template<auto...> struct auto_ { constexpr explicit(false) auto_(auto&&...) noexcept { } };
+template<auto> struct auto_ { constexpr explicit(false) auto_(const auto&...) noexcept { } };
 template<class T> struct ref { T& ref_; };
 template<class T> ref(T&) -> ref<T>;
 
 template<std::size_t N>
-constexpr auto nth_pack_element_impl = []<auto... Ns>(std::index_sequence<Ns...>) -> decltype(auto) {
-  return [](auto_<Ns>&&..., auto&& nth, auto&&...) -> decltype(auto) { return REFLECT_FWD(nth); };
+inline constexpr auto nth_pack_element = []<auto... Ns>(std::index_sequence<Ns...>) noexcept -> decltype(auto) {
+  return [](const auto_<Ns>&..., auto&& nth, const auto&...) noexcept -> decltype(auto) { return REFLECT_FWD(nth); };
 }(std::make_index_sequence<N>{});
-
-template<std::size_t N, class...Ts> requires (N < sizeof...(Ts))
-[[nodiscard]] constexpr decltype(auto) nth_pack_element(Ts&&...args) noexcept {
-  return nth_pack_element_impl<N>(REFLECT_FWD(args)...);
-}
 
 template<auto...  Vs> [[nodiscard]] constexpr auto function_name() noexcept -> std::string_view { return std::source_location::current().function_name(); }
 template<class... Ts> [[nodiscard]] constexpr auto function_name() noexcept -> std::string_view { return std::source_location::current().function_name(); }
@@ -611,6 +625,16 @@ struct fixed_string {
 };
 template<class T, std::size_t Capacity, std::size_t Size = Capacity-1> fixed_string(const T (&str)[Capacity]) -> fixed_string<T, Size>;
 
+template<typename T>
+inline constexpr bool is_unnamed_record_type_v = false;
+template<typename...Ts>
+inline constexpr bool is_unnamed_record_type_v<std::pair<Ts...>> = true;
+template<typename...Ts>
+inline constexpr bool is_unnamed_record_type_v<std::tuple<Ts...>> = true;
+
+template<typename T>
+inline constexpr bool is_record_like_type_v = std::is_aggregate_v<T> or is_unnamed_record_type_v<T>;
+
 namespace detail {
 template<class T, std::size_t Bases = 0u, class... Ts> requires std::is_aggregate_v<T>
 [[nodiscard]] constexpr auto size() -> std::size_t {
@@ -625,85 +649,95 @@ template<class T, std::size_t Bases = 0u, class... Ts> requires std::is_aggregat
 } // namespace detail
 
 template<class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto size() -> std::size_t {
+[[nodiscard]] constexpr auto size() noexcept -> std::size_t {
   return detail::size<std::remove_cvref_t<T>>();
 }
 
+template<class T> requires is_unnamed_record_type_v<std::remove_cvref_t<T>>
+[[nodiscard]] constexpr auto size() noexcept -> std::size_t {
+  return std::tuple_size_v<std::remove_cvref_t<T>>;
+}
+
 template<class T> requires std::is_aggregate_v<T>
-[[nodiscard]] constexpr auto size(const T&) -> std::size_t {
+[[nodiscard]] constexpr auto size(const T&) noexcept -> std::size_t {
   return detail::size<T>();
 }
 
+template<class T> requires is_unnamed_record_type_v<T>
+[[nodiscard]] constexpr auto size(const T&) noexcept -> std::size_t {
+  return std::tuple_size_v<T>;
+}
+
 namespace detail {
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&&,   std::integral_constant<std::size_t, 0>) noexcept { return REFLECT_FWD(fn)(); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 1>) noexcept { auto&& [_1] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 2>) noexcept { auto&& [_1, _2] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 3>) noexcept { auto&& [_1, _2, _3] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 4>) noexcept { auto&& [_1, _2, _3, _4] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 5>) noexcept { auto&& [_1, _2, _3, _4, _5] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 6>) noexcept { auto&& [_1, _2, _3, _4, _5, _6] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 7>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 8>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 9>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 10>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 11>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 12>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 13>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 14>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 15>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 16>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 17>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 18>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 19>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 20>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 21>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 22>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 23>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 24>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 25>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 26>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 27>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 28>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 29>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 30>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 31>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 32>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 33>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 34>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 35>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 36>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 37>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 38>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 39>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 40>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 41>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 42>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 43>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 44>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 45>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 46>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 47>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 48>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 49>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 50>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 51>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 52>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 53>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 54>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 55>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 56>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 57>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 58>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 59>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 60>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 61>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 62>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 63>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62, _63] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62), REFLECT_FWD_LIKE(T, _63)); }
-template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 64>) noexcept { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62, _63, _64] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62), REFLECT_FWD_LIKE(T, _63), REFLECT_FWD_LIKE(T, _64)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&&,   std::integral_constant<std::size_t, 0>) { return REFLECT_FWD(fn)(); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 1>) { auto&& [_1] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 2>) { auto&& [_1, _2] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 3>) { auto&& [_1, _2, _3] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 4>) { auto&& [_1, _2, _3, _4] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 5>) { auto&& [_1, _2, _3, _4, _5] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 6>) { auto&& [_1, _2, _3, _4, _5, _6] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 7>) { auto&& [_1, _2, _3, _4, _5, _6, _7] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 8>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 9>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 10>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 11>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 12>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 13>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 14>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 15>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 16>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 17>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 18>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 19>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 20>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 21>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 22>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 23>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 24>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 25>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 26>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 27>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 28>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 29>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 30>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 31>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 32>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 33>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 34>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 35>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 36>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 37>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 38>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 39>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 40>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 41>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 42>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 43>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 44>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 45>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 46>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 47>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 48>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 49>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 50>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 51>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 52>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 53>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 54>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 55>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 56>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 57>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 58>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 59>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 60>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 61>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 62>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 63>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62, _63] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62), REFLECT_FWD_LIKE(T, _63)); }
+template<class Fn, class T> [[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, std::integral_constant<std::size_t, 64>) { auto&& [_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62, _63, _64] = REFLECT_FWD(t); return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, _1), REFLECT_FWD_LIKE(T, _2), REFLECT_FWD_LIKE(T, _3), REFLECT_FWD_LIKE(T, _4), REFLECT_FWD_LIKE(T, _5), REFLECT_FWD_LIKE(T, _6), REFLECT_FWD_LIKE(T, _7), REFLECT_FWD_LIKE(T, _8), REFLECT_FWD_LIKE(T, _9), REFLECT_FWD_LIKE(T, _10), REFLECT_FWD_LIKE(T, _11), REFLECT_FWD_LIKE(T, _12), REFLECT_FWD_LIKE(T, _13), REFLECT_FWD_LIKE(T, _14), REFLECT_FWD_LIKE(T, _15), REFLECT_FWD_LIKE(T, _16), REFLECT_FWD_LIKE(T, _17), REFLECT_FWD_LIKE(T, _18), REFLECT_FWD_LIKE(T, _19), REFLECT_FWD_LIKE(T, _20), REFLECT_FWD_LIKE(T, _21), REFLECT_FWD_LIKE(T, _22), REFLECT_FWD_LIKE(T, _23), REFLECT_FWD_LIKE(T, _24), REFLECT_FWD_LIKE(T, _25), REFLECT_FWD_LIKE(T, _26), REFLECT_FWD_LIKE(T, _27), REFLECT_FWD_LIKE(T, _28), REFLECT_FWD_LIKE(T, _29), REFLECT_FWD_LIKE(T, _30), REFLECT_FWD_LIKE(T, _31), REFLECT_FWD_LIKE(T, _32), REFLECT_FWD_LIKE(T, _33), REFLECT_FWD_LIKE(T, _34), REFLECT_FWD_LIKE(T, _35), REFLECT_FWD_LIKE(T, _36), REFLECT_FWD_LIKE(T, _37), REFLECT_FWD_LIKE(T, _38), REFLECT_FWD_LIKE(T, _39), REFLECT_FWD_LIKE(T, _40), REFLECT_FWD_LIKE(T, _41), REFLECT_FWD_LIKE(T, _42), REFLECT_FWD_LIKE(T, _43), REFLECT_FWD_LIKE(T, _44), REFLECT_FWD_LIKE(T, _45), REFLECT_FWD_LIKE(T, _46), REFLECT_FWD_LIKE(T, _47), REFLECT_FWD_LIKE(T, _48), REFLECT_FWD_LIKE(T, _49), REFLECT_FWD_LIKE(T, _50), REFLECT_FWD_LIKE(T, _51), REFLECT_FWD_LIKE(T, _52), REFLECT_FWD_LIKE(T, _53), REFLECT_FWD_LIKE(T, _54), REFLECT_FWD_LIKE(T, _55), REFLECT_FWD_LIKE(T, _56), REFLECT_FWD_LIKE(T, _57), REFLECT_FWD_LIKE(T, _58), REFLECT_FWD_LIKE(T, _59), REFLECT_FWD_LIKE(T, _60), REFLECT_FWD_LIKE(T, _61), REFLECT_FWD_LIKE(T, _62), REFLECT_FWD_LIKE(T, _63), REFLECT_FWD_LIKE(T, _64)); }
 } // namespace detail
 
-template<class Fn, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t, auto...) noexcept {
+template<class Fn, class T> requires is_record_like_type_v<std::remove_cvref_t<T>>
+[[nodiscard]] constexpr decltype(auto) visit(Fn&& fn, T&& t) {
   #if (__cpp_structured_bindings >= 202601L)
     auto&& [... ts] = REFLECT_FWD(t);
     return REFLECT_FWD(fn)(REFLECT_FWD_LIKE(T, ts)...);
@@ -731,10 +765,10 @@ template<class T>
 }
 
 template<class T>
-[[nodiscard]] constexpr auto type_name(T&&) noexcept -> std::string_view { return type_name<std::remove_cvref_t<T>>(); }
+[[nodiscard]] constexpr auto type_name(const T&) noexcept -> std::string_view { return type_name<T>(); }
 
 template<class E>
-[[nodiscard]] constexpr auto to_underlying(const E e) noexcept {
+[[nodiscard]] constexpr auto to_underlying(E e) noexcept {
   return static_cast<std::underlying_type_t<E>>(e);
 }
 
@@ -754,7 +788,7 @@ struct static_vector {
   std::size_t size_{};
 };
 template<class E, auto N> requires std::is_enum_v<E>
-[[nodiscard]] constexpr auto enum_name() {
+[[nodiscard]] constexpr auto enum_name() noexcept {
   constexpr auto fn_name = function_name<static_cast<E>(N)>();
   constexpr auto name = fn_name.substr(enum_name_info::begin, std::size(fn_name)-enum_name_info::end-enum_name_info::begin);
   constexpr auto enum_name = name.substr(name.find_last_of("::")+1);
@@ -809,8 +843,8 @@ inline constexpr auto enum_cases = []<auto... Ns>(std::index_sequence<Ns...>) {
 #endif
 } // namespace detail
 
-template<class E> requires std::is_enum_v<E> consteval auto enum_min(const E) -> int { return REFLECT_ENUM_MIN; }
-template<class E, class T = std::underlying_type_t<E>> requires std::is_enum_v<E> consteval auto enum_max(const E) -> int {
+template<class E> requires std::is_enum_v<E> [[nodiscard]] consteval auto enum_min(E) -> int { return REFLECT_ENUM_MIN; }
+template<class E, class T = std::underlying_type_t<E>> requires std::is_enum_v<E> [[nodiscard]] consteval auto enum_max(E) -> int {
   return std::numeric_limits<T>::max() < REFLECT_ENUM_MAX ? std::numeric_limits<T>::max() : REFLECT_ENUM_MAX;
 }
 
@@ -821,11 +855,11 @@ inline constexpr auto enumerators = []<auto... Ns>(std::index_sequence<Ns...>) {
 
 template<class E, fixed_string unknown = "", auto Min = enum_min(E{}), auto Max = enum_max(E{})>
   requires (std::is_enum_v<E> and Max > Min)
-[[nodiscard]] constexpr auto enum_name(const E e) noexcept -> std::string_view {
+[[nodiscard]] constexpr auto enum_name(E e) noexcept -> std::string_view {
   if constexpr (constexpr auto cases = enumerators<E, Min, Max>; std::empty(cases)) {
     return unknown;
   } else {
-    const auto switch_case = [&]<std::size_t I = 0u>(auto switch_case, const auto value) -> std::string_view {
+    const auto switch_case = [&]<std::size_t I = 0u>(auto switch_case, auto value) -> std::string_view {
       if constexpr (I == std::size(cases)) {
         return unknown;
       } else {
@@ -839,8 +873,19 @@ template<class E, fixed_string unknown = "", auto Min = enum_min(E{}), auto Max 
   }
 }
 
+/**
+ * @code
+ * static_assert(type_id_v<void> == type_id_v<void>);
+ * static_assert(type_id_v<int>  != type_id_v<void>);
+ * static_assert(type_id_v<int>  == type_id_v<int>);
+ * static_assert(type_id_v<int>  != type_id_v<const int&>);
+ * @endcode
+ */
+template<class...>
+inline constexpr auto type_id_v = []{};
+
 template<class T>
-[[nodiscard]] constexpr auto type_id() -> std::size_t {
+[[nodiscard]] constexpr auto type_id() noexcept -> std::size_t {
   std::size_t result{};
   for (const auto c : type_name<T>()) { (result ^= c) <<= 1; }
   return result;
@@ -851,7 +896,7 @@ template<class T>
 
 template<std::size_t N, class T> requires (std::is_aggregate_v<std::remove_cvref_t<T>> and N < size<T>())
 [[nodiscard]] constexpr auto member_name() noexcept -> std::string_view {
-  constexpr std::string_view function_name = detail::function_name<visit([](auto&&... args) { return detail::ref{detail::nth_pack_element<N>(REFLECT_FWD(args)...)}; }, detail::ext<std::remove_cvref_t<T>>)>();
+  constexpr std::string_view function_name = detail::function_name<detail::ref{visit(detail::nth_pack_element<N>, detail::ext<std::remove_cvref_t<T>>)}>();
   constexpr std::string_view tmp_member_name = function_name.substr(0, function_name.find(detail::member_name_info::end));
   constexpr std::string_view member_name = tmp_member_name.substr(tmp_member_name.find_last_of(detail::member_name_info::begin)+1);
   static_assert(std::size(member_name) > 0u);
@@ -870,13 +915,13 @@ template<std::size_t N, class T> requires (std::is_aggregate_v<T> and N < size<T
   return member_name<N, T>();
 }
 
-template<std::size_t N, class T> requires (std::is_aggregate_v<std::remove_cvref_t<T>> and N < size<std::remove_cvref_t<T>>())
+template<std::size_t N, class T> requires (is_record_like_type_v<std::remove_cvref_t<T>> and N < size<std::remove_cvref_t<T>>())
 [[nodiscard]] constexpr decltype(auto) get(T&& t) noexcept {
-  return visit([](auto&&... args) -> decltype(auto) { return detail::nth_pack_element<N>(REFLECT_FWD(args)...); }, REFLECT_FWD(t));
+  return visit(detail::nth_pack_element<N>, REFLECT_FWD(t));
 }
 
-template<std::size_t N, class T> requires (std::is_aggregate_v<T> and N < size<T>())
-using member_type = std::remove_cvref_t<decltype(reflect::get<N>(std::declval<T&&>()))>;
+template<std::size_t N, class T> requires (is_record_like_type_v<T> and N < size<T>())
+using member_type = std::remove_cvref_t<decltype(reflect::get<N>(std::declval<T>()))>;
 
 namespace detail {
 template<class T, auto Name>
@@ -965,18 +1010,27 @@ concept has_member_name = detail::has_member_name_impl<std::remove_cvref_t<T>, N
 
 template<fixed_string Name, class T>
   requires (std::is_aggregate_v<std::remove_cvref_t<T>> and has_member_name<std::remove_cvref_t<T>, Name>)
-constexpr decltype(auto) get(T&& t) noexcept {
-  return visit([](auto&&... args) -> decltype(auto) {
-    constexpr auto index = []<auto... Ns>(std::index_sequence<Ns...>){
-      return (((std::string_view{Name} == member_name<Ns, std::remove_cvref_t<T>>()) ? Ns : decltype(Ns){}) + ...);
-    }(std::make_index_sequence<size<std::remove_cvref_t<T>>()>{});
-    return detail::nth_pack_element<index>(REFLECT_FWD(args)...);
-  }, REFLECT_FWD(t));
+[[nodiscard]] constexpr auto index_of() noexcept -> std::size_t {
+  return []<auto... Ns>(std::index_sequence<Ns...>){
+    return (((Name == member_name<Ns, std::remove_cvref_t<T>>()) ? Ns : decltype(Ns){}) + ...);
+  }(std::make_index_sequence<size<std::remove_cvref_t<T>>()>{});
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<T> and has_member_name<T, Name>)
+[[nodiscard]] constexpr auto index_of(const T&) noexcept -> std::size_t {
+  return index_of<Name, T>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<std::remove_cvref_t<T>> and has_member_name<std::remove_cvref_t<T>, Name>)
+[[nodiscard]] constexpr decltype(auto) get(T&& t) noexcept {
+  return visit(detail::nth_pack_element<index_of<Name, std::remove_cvref_t<T>>()>, REFLECT_FWD(t));
 }
 
 template<template<class...> class R, class T>
   requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto to(T&& t) noexcept {
+[[nodiscard]] constexpr auto to(T&& t) {
    if constexpr (std::is_lvalue_reference_v<decltype(t)>) {
     return visit([](auto&&... args) { return R<decltype(REFLECT_FWD(args))...>{REFLECT_FWD(args)...}; }, t);
   } else {
@@ -986,9 +1040,9 @@ template<template<class...> class R, class T>
 
 template<fixed_string... Members, class TSrc, class TDst>
   requires (std::is_aggregate_v<TSrc> and std::is_aggregate_v<TDst>)
-constexpr auto copy(const TSrc& src, TDst& dst) noexcept -> void {
-  constexpr auto contains = []([[maybe_unused]] const auto name) {
-    return sizeof...(Members) == 0u or ((name == std::string_view{Members}) or ...);
+constexpr auto copy(const TSrc& src, TDst& dst) -> void {
+  constexpr auto contains = []([[maybe_unused]] auto name) {
+    return sizeof...(Members) == 0u or ((name == Members) or ...);
   };
   auto dst_view = to<std::tuple>(dst);
   [&]<auto... Ns>(std::index_sequence<Ns...>) {
@@ -1001,47 +1055,100 @@ constexpr auto copy(const TSrc& src, TDst& dst) noexcept -> void {
 }
 
 template<class R, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto to(T&& t) noexcept {
+[[nodiscard]] constexpr auto to(T&& t) {
   R r{};
   copy(REFLECT_FWD(t), r);
   return r;
 }
 
 template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto size_of() -> std::size_t {
+[[nodiscard]] constexpr auto size_of() noexcept -> std::size_t {
   return sizeof(std::remove_cvref_t<decltype(get<N>(detail::ext<T>))>);
 }
 
-template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto size_of(T&&) -> std::size_t {
-  return size_of<N, std::remove_cvref_t<T>>();
+template<std::size_t N, class T> requires std::is_aggregate_v<T>
+[[nodiscard]] constexpr auto size_of(const T&) noexcept -> std::size_t {
+  return size_of<N, T>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<std::remove_cvref_t<T>> and has_member_name<std::remove_cvref_t<T>, Name>)
+[[nodiscard]] constexpr auto size_of() noexcept -> std::size_t {
+  return size_of<index_of<Name, std::remove_cvref_t<T>>(), std::remove_cvref_t<T>>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<T> and has_member_name<T, Name>)
+[[nodiscard]] constexpr auto size_of(const T&) noexcept -> std::size_t {
+  return size_of<index_of<Name, T>(), T>();
 }
 
 template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto align_of() -> std::size_t {
+[[nodiscard]] constexpr auto align_of() noexcept -> std::size_t {
   return alignof(std::remove_cvref_t<decltype(get<N>(detail::ext<T>))>);
 }
 
-template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto align_of(T&&) -> std::size_t {
-  return align_of<N, std::remove_cvref_t<T>>();
+template<std::size_t N, class T> requires std::is_aggregate_v<T>
+[[nodiscard]] constexpr auto align_of(const T&) noexcept -> std::size_t {
+  return align_of<N, T>();
 }
 
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<std::remove_cvref_t<T>> and has_member_name<std::remove_cvref_t<T>, Name>)
+[[nodiscard]] constexpr auto align_of() noexcept -> std::size_t {
+  return align_of<index_of<Name, std::remove_cvref_t<T>>(), std::remove_cvref_t<T>>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<T> and has_member_name<T, Name>)
+[[nodiscard]] constexpr auto align_of(const T&) noexcept -> std::size_t {
+  return align_of<index_of<Name, T>(), T>();
+}
+
+namespace detail {
+template<class T>
+union uninitialized {
+  char bytes[sizeof(T)];
+  T value;
+};
+} // namespace detail
+
 template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto offset_of() -> std::size_t {
-  if constexpr (not N) {
-    return {};
-  } else {
-    constexpr auto offset = offset_of<N-1, T>() + size_of<N-1, T>();
-    constexpr auto alignment = std::min(alignof(T), align_of<N, T>());
-    constexpr auto padding = offset % alignment;
-    return offset + padding;
+[[nodiscard]] constexpr auto offset_of() noexcept -> std::size_t {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-var-template"
+#endif
+  const auto& unknown = detail::ext<detail::uninitialized<T>>;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  const void* address = __builtin_addressof(get<N>(unknown.value));
+  for (std::size_t i = 0; i < sizeof(unknown.bytes); ++i) {
+    if (address == &unknown.bytes[i]) {
+      return i;
+    }
   }
+#if defined(__clang__)
+  __builtin_unreachable();
+#endif
 }
 
-template<std::size_t N, class T> requires std::is_aggregate_v<std::remove_cvref_t<T>>
-[[nodiscard]] constexpr auto offset_of(T&&) -> std::size_t {
-  return offset_of<N, std::remove_cvref_t<T>>();
+template<std::size_t N, class T> requires std::is_aggregate_v<T>
+[[nodiscard]] constexpr auto offset_of(const T&) noexcept -> std::size_t {
+  return offset_of<N, T>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<std::remove_cvref_t<T>> and has_member_name<std::remove_cvref_t<T>, Name>)
+[[nodiscard]] constexpr auto offset_of() noexcept -> std::size_t {
+  return offset_of<index_of<Name, std::remove_cvref_t<T>>(), std::remove_cvref_t<T>>();
+}
+
+template<fixed_string Name, class T>
+  requires (std::is_aggregate_v<T> and has_member_name<T, Name>)
+[[nodiscard]] constexpr auto offset_of(const T&) noexcept -> std::size_t {
+  return offset_of<index_of<Name, T>(), T>();
 }
 
 template<class T, class Fn> requires std::is_aggregate_v<std::remove_cvref_t<T>>
@@ -1083,7 +1190,7 @@ enum e3 { e3a, e3b, e3c, };
 enum class e4 : std::int32_t { e4a, e4b = 5, e4c, e4d = 2, };
 consteval auto enum_min(e) { return e::_141; }
 consteval auto enum_max(e) { return e::_142; }
-void failed(); 
+void failed();
 inline constexpr auto expect = [](bool cond) { if (not cond) { failed(); } };
 } // reflect::test
 
@@ -1135,7 +1242,7 @@ static_assert(([] {
 
   // size
   {
-    struct empty {};
+    using test::empty;
     struct one { int a; };
     struct two { int a; reflect::test::optional<int> o; };
     struct empty_with_base : empty {};
@@ -1146,6 +1253,9 @@ static_assert(([] {
     struct one_with_bases : empty, base { int a; };
     struct two_with_bases : empty, base { int a; reflect::test::optional<int> o; };
     struct two_with_base_member : empty, base { int a; base b; };
+    using tuple_with_values = std::tuple<int, int, int>;
+    using tuple_with_refs = std::tuple<int const&, int &, int *>;
+    using pair_test = std::pair<float, std::string_view>;
 
     static_assert(0 == size<empty>());
     static_assert(0 == size(empty{}));
@@ -1177,12 +1287,16 @@ static_assert(([] {
     static_assert(1 == size<const one_with_bases>());
     static_assert(2 == size<const two_with_bases>());
     static_assert(2 == size<const two_with_base_member>());
+    static_assert(3 == reflect::size<tuple_with_values>());
+    static_assert(3 == reflect::size<tuple_with_values>());
+    static_assert(3 == reflect::size<tuple_with_refs>());
+    static_assert(2 == reflect::size<pair_test>());
 
     struct non_standard_layout {
      private:
-        int _1{};
+        [[maybe_unused]] int _1{};
      public:
-        int _2{};
+        [[maybe_unused]] int _2{};
     };
 
     struct S {
@@ -1269,7 +1383,7 @@ static_assert(([] {
 
   // visit
   {
-    struct empty {};
+    using test::empty;
     static_assert(0 == visit([]([[maybe_unused]] auto&&... args) { return sizeof...(args); }, empty{}));
 
     struct one { int a; };
@@ -1277,6 +1391,9 @@ static_assert(([] {
 
     struct two { int a; int b; };
     static_assert(2 == visit([]([[maybe_unused]] auto&&... args) { return sizeof...(args); }, two{}));
+
+    using ts = std::tuple<int,float,double>;
+    static_assert(3 == visit([]([[maybe_unused]] auto&&... args) { return sizeof...(args); }, ts{}));
   }
 
   // type_name
@@ -1300,6 +1417,7 @@ static_assert(([] {
     static_assert(std::string_view{"E"} == type_name(reflect::test::foo::E{}));
     static_assert(std::string_view{"local"} == type_name<local>());
     static_assert(std::string_view{"local"} == type_name(local{}));
+    static_assert(std::string_view{"tuple"} == type_name(std::tuple<int,int>{}));
   }
 
   // type_id
@@ -1316,6 +1434,14 @@ static_assert(([] {
     static_assert(type_id<void*>() == type_id<void>());
     static_assert(type_id<reflect::test::foo>() == type_id(reflect::test::foo{}));
     static_assert(type_id<reflect::test::bar>() == type_id(reflect::test::bar{}));
+  }
+
+  // type_id_v
+  {
+    static_assert(type_id_v<void> == type_id_v<void>);
+    static_assert(type_id_v<int>  != type_id_v<void>);
+    static_assert(type_id_v<int>  == type_id_v<int>);
+    static_assert(type_id_v<int>  != type_id_v<const int&>);
   }
 
   #ifndef _MSC_VER
@@ -1364,11 +1490,11 @@ static_assert(([] {
         B = 1,
       };
 
-      static_assert([](const auto e) { return requires { enum_name<foobar,"",1,2>(e); }; }(foobar::foo));
-      static_assert([](const auto e) { return requires { enum_name<mask,"",1,2>(e); }; }(mask::a));
-      static_assert(not [](const auto e) { return requires { enum_name<foobar,"",1,2>(e); }; }(0));
-      static_assert(not [](const auto e) { return requires { enum_name<int,"",1,2>(e); }; }(0));
-      static_assert(not [](const auto e) { return requires { enum_name<int,"",1,2>(e); }; }(42u));
+      static_assert([](auto e) { return requires { enum_name<foobar,"",1,2>(e); }; }(foobar::foo));
+      static_assert([](auto e) { return requires { enum_name<mask,"",1,2>(e); }; }(mask::a));
+      static_assert(not [](auto e) { return requires { enum_name<foobar,"",1,2>(e); }; }(0));
+      static_assert(not [](auto e) { return requires { enum_name<int,"",1,2>(e); }; }(0));
+      static_assert(not [](auto e) { return requires { enum_name<int,"",1,2>(e); }; }(42u));
 
       static_assert(std::string_view{""} == enum_name<foobar,"",1,2>(static_cast<foobar>(42)));
       static_assert(std::string_view{"unknown"} == enum_name<foobar,"unknown",1,2>(static_cast<foobar>(42)));
@@ -1446,6 +1572,18 @@ static_assert(([] {
         static_assert(std::is_same_v<decltype(get<0>(foo{})), int&&>);
       }
     }
+
+    {
+      using tuple_foo = std::tuple<int, bool>;
+      {
+        auto f = tuple_foo{};
+        [[maybe_unused]] auto value0 = get<0>(f);
+        static_assert(std::is_same_v<decltype(value0), int>);
+
+        [[maybe_unused]] auto value1 = get<1>(f);
+        static_assert(std::is_same_v<decltype(value1), bool>);
+      }
+    }
   }
 
   // member_type
@@ -1455,6 +1593,12 @@ static_assert(([] {
     static_assert(std::is_same_v<int, member_type<0, foo>>);
     static_assert(std::is_same_v<float, member_type<1, foo>>);
     static_assert(std::is_same_v<bool, member_type<2, foo>>);
+  }
+  {
+    using tuple_foo = std::tuple<int, bool>;
+
+    static_assert(std::is_same_v<int, member_type<0, tuple_foo>>);
+    static_assert(std::is_same_v<bool, member_type<1, tuple_foo>>);
   }
 
   // has_member_name
@@ -1475,8 +1619,15 @@ static_assert(([] {
     static_assert(detail::diagnose_member_name<foo, "baz">() == "`foo` has no data member named `baz`. Did you mean `bar`?");
     static_assert(detail::diagnose_member_name<foo, "lag">() == "`foo` has no data member named `lag`. Did you mean `flag`?");
 
-    struct empty {};
+    using test::empty;
     static_assert(detail::diagnose_member_name<empty, "any">() == "`empty` has no data members.");
+  }
+
+  // index_of
+  {
+    struct foo { int a; int b; };
+    static_assert(0 == index_of<"a", foo>());
+    static_assert(1 == index_of<"b">(foo{}));
   }
 
   // get [by name]
@@ -1701,6 +1852,10 @@ static_assert(([] {
     static_assert(sizeof(char) == size_of<1, s>());
     static_assert(sizeof(char) == size_of<2, s>());
     static_assert(sizeof(int) == size_of<3, s>());
+    static_assert(sizeof(float) == size_of<"a", s>());
+    static_assert(sizeof(char) == size_of<"b", s>());
+    static_assert(sizeof(char) == size_of<"bb", s>());
+    static_assert(sizeof(int) == size_of<"c", s>());
   }
 
   // align_of
@@ -1716,6 +1871,10 @@ static_assert(([] {
     static_assert(alignof(char) == align_of<1, s>());
     static_assert(alignof(char) == align_of<2, s>());
     static_assert(alignof(int) == align_of<3, s>());
+    static_assert(alignof(float) == align_of<"a", s>());
+    static_assert(alignof(char) == align_of<"b", s>());
+    static_assert(alignof(char) == align_of<"bb", s>());
+    static_assert(alignof(int) == align_of<"c", s>());
   }
 
   // offset_of
@@ -1754,23 +1913,53 @@ static_assert(([] {
       char c;
     };
 
-    static_assert(offset_of<0, a>() == 0);
-    static_assert(offset_of<1, a>() == sizeof(int));
-    static_assert(offset_of<0, b>() == 0);
-    static_assert(offset_of<1, b>() == sizeof(int));
-    static_assert(offset_of<0, s>() == 0);
-    static_assert(offset_of<1, s>() == sizeof(float));
-    static_assert(offset_of<2, s>() == sizeof(float) + sizeof(char));
-    static_assert(offset_of<3, s>() == alignof(s)*2);
-    static_assert(offset_of<0, s2>() == 0);
-    static_assert(offset_of<1, s2>() == sizeof(float));
-    static_assert(offset_of<2, s2>() == sizeof(float) + sizeof(char));
-    static_assert(offset_of<3, s2>() == sizeof(float) + sizeof(char) + sizeof(char));
-    static_assert(offset_of<4, s2>() == sizeof(float) + sizeof(char) + sizeof(char) + sizeof(int));
-    static_assert(offset_of<5, s2>() == sizeof(float) + sizeof(char) + sizeof(char) + sizeof(int) + sizeof(double));
-    static_assert(offset_of<0, al>() == 0);
-    static_assert(offset_of<1, al>() == sizeof(char)*2);
-    static_assert(offset_of<2, al>() == sizeof(char)*2 + sizeof(int));
+    using test::empty;
+
+    struct p {
+      int i;
+#ifdef _MSC_VER
+      [[msvc::no_unique_address]] empty e;
+#else
+      [[no_unique_address]] empty e;
+#endif
+    };
+
+    static_assert(offset_of<0, a>() == __builtin_offsetof(a, i));
+    static_assert(offset_of<1, a>() == __builtin_offsetof(a, j));
+    static_assert(offset_of<"i", a>() == __builtin_offsetof(a, i));
+    static_assert(offset_of<"j", a>() == __builtin_offsetof(a, j));
+    static_assert(offset_of<0, b>() == __builtin_offsetof(b, i));
+    static_assert(offset_of<1, b>() == __builtin_offsetof(b, k));
+    static_assert(offset_of<"i", b>() == __builtin_offsetof(b, i));
+    static_assert(offset_of<"k", b>() == __builtin_offsetof(b, k));
+    static_assert(offset_of<0, s>() == __builtin_offsetof(s, a));
+    static_assert(offset_of<1, s>() == __builtin_offsetof(s, b));
+    static_assert(offset_of<2, s>() == __builtin_offsetof(s, bb));
+    static_assert(offset_of<3, s>() == __builtin_offsetof(s, c));
+    static_assert(offset_of<"a", s>() == __builtin_offsetof(s, a));
+    static_assert(offset_of<"b", s>() == __builtin_offsetof(s, b));
+    static_assert(offset_of<"bb", s>() == __builtin_offsetof(s, bb));
+    static_assert(offset_of<"c", s>() == __builtin_offsetof(s, c));
+    static_assert(offset_of<0, s2>() == __builtin_offsetof(s2, a));
+    static_assert(offset_of<1, s2>() == __builtin_offsetof(s2, b));
+    static_assert(offset_of<2, s2>() == __builtin_offsetof(s2, bb));
+    static_assert(offset_of<3, s2>() == __builtin_offsetof(s2, c));
+    static_assert(offset_of<4, s2>() == __builtin_offsetof(s2, d));
+    static_assert(offset_of<5, s2>() == __builtin_offsetof(s2, e));
+    static_assert(offset_of<"a", s2>() == __builtin_offsetof(s2, a));
+    static_assert(offset_of<"b", s2>() == __builtin_offsetof(s2, b));
+    static_assert(offset_of<"bb", s2>() == __builtin_offsetof(s2, bb));
+    static_assert(offset_of<"c", s2>() == __builtin_offsetof(s2, c));
+    static_assert(offset_of<"d", s2>() == __builtin_offsetof(s2, d));
+    static_assert(offset_of<"e", s2>() == __builtin_offsetof(s2, e));
+    static_assert(offset_of<0, al>() == __builtin_offsetof(al, a));
+    static_assert(offset_of<1, al>() == __builtin_offsetof(al, b));
+    static_assert(offset_of<2, al>() == __builtin_offsetof(al, c));
+    static_assert(offset_of<"a", al>() == __builtin_offsetof(al, a));
+    static_assert(offset_of<"b", al>() == __builtin_offsetof(al, b));
+    static_assert(offset_of<"c", al>() == __builtin_offsetof(al, c));
+    static_assert(offset_of<1, p>() == __builtin_offsetof(p, e));
+    static_assert(offset_of<"e", p>() == __builtin_offsetof(p, e));
   }
 
   // for_each

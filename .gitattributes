@@ -1,0 +1,2 @@
+include/matjson/external/** linguist-vendored
+src/external/** linguist-vendored

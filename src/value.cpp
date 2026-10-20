@@ -6,7 +6,7 @@ using namespace matjson;
 using namespace geode;
 
 Value::Value() {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{});
+    m_impl = std::make_unique<ValueImpl>(ObjCtorTag{}, std::span<Value>{});
 }
 
 Value::Value(char const* str) : Value(std::string(str)) {}
@@ -20,6 +20,10 @@ Value::Value(std::string_view value) {
 }
 
 Value::Value(double value) {
+    m_impl = std::make_unique<ValueImpl>(Type::Number, value);
+}
+
+Value::Value(float value) {
     m_impl = std::make_unique<ValueImpl>(Type::Number, value);
 }
 
@@ -39,50 +43,90 @@ Value::Value(std::vector<Value> value) {
     m_impl = std::make_unique<ValueImpl>(Type::Array, std::move(value));
 }
 
-Value::Value(std::vector<Value> value, bool) {
-    m_impl = std::make_unique<ValueImpl>(Type::Object, value);
+Value::Value(ObjCtorTag, std::span<Value> value) {
+    m_impl = std::make_unique<ValueImpl>(ObjCtorTag{}, value);
 }
 
 Value::Value(std::nullptr_t) {
-    m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
+    // empty m_impl
 }
 
 Value::Value(std::unique_ptr<ValueImpl> impl) : m_impl(std::move(impl)) {}
 
 Value::Value(Value const& other) {
-    m_impl = std::make_unique<ValueImpl>(*other.m_impl.get());
+    if (other.m_impl) {
+        m_impl = std::make_unique<ValueImpl>(*other.m_impl);
+    }
 }
 
 Value::Value(Value&& other) noexcept {
-    if (other.m_impl == getDummyNullValue()->m_impl) {
-        m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-        return;
+    if (other.m_impl && other.m_impl->key()) {
+        auto key = *other.m_impl->key();
+        m_impl = std::move(other.m_impl);
+        // cant have empty m_impl here, since it had a key
+        other.m_impl = ValueImpl::makeKeyedNull(std::move(key));
     }
-    // copy it
-    auto key = other.getKey();
-    m_impl.swap(other.m_impl);
-
-    other.m_impl = std::make_unique<ValueImpl>(Type::Null, std::monostate{});
-    other.m_impl->key() = std::move(key);
+    else {
+        m_impl = std::move(other.m_impl);
+        // other is left with an empty m_impl, which is fine
+    }
 }
 
 Value::~Value() {}
 
 Value Value::object() {
-    return Value(std::make_unique<ValueImpl>(Type::Object, std::vector<Value>{}));
+    return Value(std::make_unique<ValueImpl>(ObjCtorTag{}, std::span<Value>{}));
 }
 
 Value Value::array() {
     return Value(std::make_unique<ValueImpl>(Type::Array, std::vector<Value>{}));
 }
 
-// TODO: having explicit operator=(Value const&) and operator=(Value&&) would be
-// nice for correctness and performance, but it would break ABI... do it in the future
-
-Value& Value::operator=(Value value) {
+Value& Value::operator=(Value const& other) {
     if (CHECK_DUMMY_NULL) return *this;
-    m_impl.swap(value.m_impl);
-    if (auto& key = value.m_impl->key()) m_impl->setKey(std::move(*key));
+    if (this == &other) return *this;
+    // assignment never changes which object entry this is
+    auto key = this->getKey();
+    std::unique_ptr<ValueImpl> copy;
+    if (other.m_impl) {
+        copy = std::make_unique<ValueImpl>(*other.m_impl);
+    }
+    m_impl = std::move(copy);
+    if (key) {
+        this->setKey_(*key);
+    }
+    else if (m_impl) {
+        // didnt have a key before, so make sure not to copy other's key
+        m_impl->clearKey();
+    }
+    return *this;
+}
+
+Value& Value::operator=(Value&& other) {
+    if (CHECK_DUMMY_NULL) return *this;
+    if (this == &other) return *this;
+
+    // `other` may live inside of our old node (e.g. `v = std::move(v["child"])`),
+    // so keep the old node alive until we are done touching `other`
+    auto old = std::move(m_impl);
+    std::optional<std::string> myKey;
+    if (old) myKey = std::move(old->key());
+
+    std::optional<std::string> otherKey;
+    if (other.m_impl) otherKey = std::move(other.m_impl->key());
+
+    m_impl = std::move(other.m_impl);
+    if (myKey) {
+        if (m_impl) m_impl->setKey(std::move(*myKey));
+        else m_impl = ValueImpl::makeKeyedNull(std::move(*myKey));
+    }
+    else if (m_impl) {
+        m_impl->clearKey();
+    }
+    // if other had a key, make sure it has an m_impl
+    if (otherKey) {
+        other.m_impl = ValueImpl::makeKeyedNull(std::move(*otherKey));
+    }
     return *this;
 }
 
@@ -98,11 +142,10 @@ Result<Value const&> Value::get(std::string_view key) const {
     if (this->type() != Type::Object) {
         return Err("not an object");
     }
-    auto& arr = m_impl->asArray();
-    for (auto& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return Ok(value);
-        }
+    auto& map = m_impl->asMap();
+    auto it = map.find(key);
+    if (it != map.end()) {
+        return Ok(it.value());
     }
     return Err("key not found");
 }
@@ -126,15 +169,14 @@ Value& Value::operator[](std::string_view key) {
     if (this->type() != Type::Object) {
         return *getDummyNullValue();
     }
-    auto& arr = m_impl->asArray();
-    for (auto& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return value;
-        }
+    auto& map = m_impl->asMap();
+    if (auto found = map.find(key); found != map.end()) {
+        return found.value();
     }
-    arr.emplace_back(Value());
-    arr.back().m_impl->setKey(std::string(key));
-    return arr.back();
+    std::string owned(key);
+    auto [it, inserted] = map.try_emplace(owned);
+    it.value().m_impl->setKey(std::move(owned));
+    return it.value();
 }
 
 Value const& Value::operator[](std::string_view key) const {
@@ -159,15 +201,13 @@ void Value::set(std::string_view key, Value value) {
     if (this->type() != Type::Object) {
         return;
     }
-    (void)this->get(key)
-        .inspect([&value](Value& v) {
-            v = std::move(value);
-        })
-        .inspectErr([&](auto&&) {
-            auto& arr = m_impl->asArray();
-            arr.emplace_back(std::move(value));
-            arr.back().m_impl->setKey(std::string(key));
-        });
+    auto& map = m_impl->asMap();
+    if (auto found = map.find(key); found != map.end()) {
+        found.value() = std::move(value);
+        return;
+    }
+    auto [it, inserted] = map.try_emplace(std::string(key), std::move(value));
+    it.value().setKey_(key);
 }
 
 void Value::push(Value value) {
@@ -178,91 +218,86 @@ void Value::push(Value value) {
 }
 
 void Value::clear() {
-    if (this->type() != Type::Array && this->type() != Type::Object) {
-        return;
+    if (this->type() == Type::Array) {
+        m_impl->asArray().clear();
     }
-    m_impl->asArray().clear();
+    else if (this->type() == Type::Object) {
+        m_impl->asMap().clear();
+    }
 }
 
 bool Value::erase(std::string_view key) {
     if (this->type() != Type::Object) {
         return false;
     }
-    auto& arr = m_impl->asArray();
-    for (auto it = arr.begin(); it != arr.end(); ++it) {
-        if (it->m_impl->key().value() == key) {
-            it->m_impl->clearKey();
-            for (auto tit = it + 1; tit != arr.end(); ++tit) {
-                tit->m_impl.swap(it->m_impl);
-                ++it;
-            }
-            // "it" is now the last one, no funny moves happen
-            arr.erase(it);
-            return true;
-        }
-    }
-    return false;
+    auto& map = m_impl->asMap();
+    return map.erase(key) == 1;
 }
 
 bool Value::contains(std::string_view key) const {
     if (this->type() != Type::Object) {
         return false;
     }
-    auto const& arr = m_impl->asArray();
-    for (auto const& value : arr) {
-        if (value.m_impl->key().value() == key) {
-            return true;
-        }
-    }
-    return false;
+    return m_impl->asMap().contains(key);
 }
 
 size_t Value::size() const {
-    if (this->type() != Type::Array && this->type() != Type::Object) {
+    if (this->type() == Type::Array) {
+        return m_impl->asArray().size();
+    }
+    else if (this->type() == Type::Object) {
+        return m_impl->asMap().size();
+    }
+    else {
         return 0;
     }
-    return m_impl->asArray().size();
 }
 
 Type Value::type() const {
-    return m_impl->type();
+    return m_impl ? m_impl->type() : Type::Null;
 }
 
-std::vector<Value>::iterator Value::begin() {
+ValueIterator Value::begin() {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().begin();
+    return ValueIterator(m_impl.get(), true);
 }
 
-std::vector<Value>::iterator Value::end() {
+ValueIterator Value::end() {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().end();
+    return ValueIterator(m_impl.get(), false);
 }
 
-std::vector<Value>::const_iterator Value::begin() const {
+ConstValueIterator Value::begin() const {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().begin();
+    return ConstValueIterator(m_impl.get(), true);
 }
 
-std::vector<Value>::const_iterator Value::end() const {
+ConstValueIterator Value::end() const {
     if (this->type() != Type::Array && this->type() != Type::Object) {
         return {};
     }
-    return m_impl->asArray().end();
+    return ConstValueIterator(m_impl.get(), false);
 }
 
 std::optional<std::string> Value::getKey() const {
+    if (!m_impl) return std::nullopt;
     return m_impl->key();
 }
 
 void Value::setKey_(std::string_view key) {
     if (CHECK_DUMMY_NULL) return;
-    return m_impl->setKey(std::string(key));
+    if (!m_impl) {
+        // need m_impl to store keys
+        m_impl = ValueImpl::makeKeyedNull(std::string(key));
+        return;
+    }
+    m_impl->setKey(std::string(key));
 }
 
 Result<bool> Value::asBool() const {
@@ -300,6 +335,13 @@ Result<double> Value::asDouble() const {
     return Ok(m_impl->asNumber<double>());
 }
 
+Result<float> Value::asFloat() const {
+    if (this->type() != Type::Number) {
+        return Err("not a number");
+    }
+    return Ok(m_impl->asNumber<float>());
+}
+
 Result<std::vector<Value>&> Value::asArray() & {
     if (this->type() != Type::Array) {
         return Err("not an array");
@@ -321,21 +363,29 @@ Result<std::vector<Value> const&> Value::asArray() const& {
     return Ok(m_impl->asArray());
 }
 
+// If either side has no m_impl it is a null, so only the types can differ
 bool Value::operator==(Value const& other) const {
+    if (!m_impl || !other.m_impl) return this->type() == other.type();
     return *m_impl == *other.m_impl;
 }
 
 bool Value::operator<(Value const& other) const {
+    if (!m_impl || !other.m_impl) return this->type() < other.type();
     return *m_impl < *other.m_impl;
 }
 
 bool Value::operator>(Value const& other) const {
-    return *m_impl > *other.m_impl;
+    return other < *this;
 }
 
 bool Value::isExactlyDouble() const {
     if (!this->isNumber()) return false;
     return m_impl->isDouble();
+}
+
+bool Value::isExactlyFloat() const {
+    if (!this->isNumber()) return false;
+    return m_impl->isFloat();
 }
 
 bool Value::isExactlyInt() const {

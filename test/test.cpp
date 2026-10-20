@@ -1,10 +1,10 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest.h>
+//
 #include <array>
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-#include <catch2/matchers/catch_matchers_all.hpp>
 #include <map>
 #include <matjson.hpp>
-#include <matjson/reflect.hpp>
+#include <matjson/reflect_all.hpp>
 #include <matjson/std.hpp>
 #include <unordered_map>
 
@@ -22,12 +22,15 @@ using namespace std::string_view_literals;
 
 // template <>
 // struct matjson::Serialize<CoolStruct> {
-//     static matjson::Value to_json(CoolStruct const& cool) {
+//     static matjson::Value toJson(CoolStruct const& cool) {
 //         return matjson::makeObject({{"name", cool.name}, {"value", cool.value}});
 //     }
 
-//     static Result<CoolStruct, matjson::GenericError> from_json(matjson::Value const& value) {
-//         return CoolStruct{.name = value["name"].as_string(), .value = value["value"].as_int()};
+//     static Result<CoolStruct> fromJson(matjson::Value const& value) {
+//         CoolStruct res;
+//         GEODE_UNWRAP_INTO(res.name, value["name"].asString());
+//         GEODE_UNWRAP_INTO(res.value, value["value"].asInt());
+//         return Ok(res);
 //     }
 // };
 
@@ -58,7 +61,7 @@ TEST_CASE("Object basics") {
 }
 
 TEST_CASE("Struct serialization") {
-    CoolStruct foo{.name = "Hello!", .value = GENERATE(take(5, random(-100000, 100000)))};
+    CoolStruct foo{.name = "Hello!", .value = 12345};
 
     Value obj = foo;
 
@@ -200,8 +203,8 @@ TEST_CASE("STL serialization") {
     std::vector<double> nums = {1.0, 3.4};
     std::span<double> span = nums;
 
-    REQUIRE(Value(nums).dump(0) == "[1,3.4]");
-    REQUIRE(Value(span).dump(0) == "[1,3.4]");
+    REQUIRE(Value(nums).dump(0) == "[1.0,3.4]");
+    REQUIRE(Value(span).dump(0) == "[1.0,3.4]");
 }
 
 TEST_CASE("UTF-8 strings") {
@@ -547,32 +550,51 @@ TEST_CASE("Value isExactlyT") {
     REQUIRE(!value.isExactlyInt());
     REQUIRE(value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = 123.0;
     REQUIRE(!value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
+
+    value = 123.0f;
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(!value.isExactlyDouble());
+    REQUIRE(value.isExactlyFloat());
 
     value = -10;
     REQUIRE(value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = "hello";
     REQUIRE(!value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     // parsed ints are stored as unsigned unless they are negative
     value = matjson::parse("123").unwrap();
     REQUIRE(!value.isExactlyInt());
     REQUIRE(value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 
     value = matjson::parse("-123").unwrap();
     REQUIRE(value.isExactlyInt());
     REQUIRE(!value.isExactlyUInt());
     REQUIRE(!value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
+
+    // parsed decimals are always stored as double
+    value = matjson::parse("0.1").unwrap();
+    REQUIRE(!value.isExactlyInt());
+    REQUIRE(!value.isExactlyUInt());
+    REQUIRE(value.isExactlyDouble());
+    REQUIRE(!value.isExactlyFloat());
 }
 
 TEST_CASE("Value::erase") {
@@ -690,7 +712,7 @@ TEST_CASE("Comments") {
 }
 
 TEST_CASE("Value after move") {
-    SECTION("Moving out the entire object") {
+    SUBCASE("Moving out the entire object") {
         matjson::Value value = matjson::parse("{\"hello\": \"world\"}").unwrap();
         matjson::Value newOne(std::move(value));
         REQUIRE(value.isNull());
@@ -701,7 +723,7 @@ TEST_CASE("Value after move") {
         REQUIRE(newOne.dump(0) == "{\"hello\":\"world\"}");
     }
 
-    SECTION("Moving out part of an object") {
+    SUBCASE("Moving out part of an object") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -719,7 +741,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value.dump(0) == R"({"hello":"world","sub":null,"bye":10})");
     }
 
-    SECTION("Moving out and assigning in its place") {
+    SUBCASE("Moving out and assigning in its place") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -731,7 +753,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == "hello");
     }
 
-    SECTION("Moving out and copying it somewhere else") {
+    SUBCASE("Moving out and copying it somewhere else") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -746,7 +768,7 @@ TEST_CASE("Value after move") {
         REQUIRE(value["sub"] == nullptr);
     }
 
-    SECTION("Moving out and moving it somewhere else") {
+    SUBCASE("Moving out and moving it somewhere else") {
         matjson::Value value =
             matjson::parse(R"({"hello": "world", "sub": {"value": true}, "bye": 10})").unwrap();
         matjson::Value newOne(std::move(value["sub"]));
@@ -759,5 +781,303 @@ TEST_CASE("Value after move") {
         REQUIRE(!value2.contains("sub"));
         REQUIRE(value2["test"]["value"] == true);
         REQUIRE(value["sub"] == nullptr);
+    }
+
+    SUBCASE("Self move-assignment") {
+        matjson::Value value = matjson::parse(R"({"a": 123})").unwrap();
+
+        value = std::move(value);
+        REQUIRE(value.dump(0) == R"({"a":123})");
+        REQUIRE(value["a"] == 123);
+    }
+}
+
+TEST_CASE("Dummy value") {
+    SUBCASE("Does not get a key set on it") {
+        matjson::Value object;
+        auto& dummy = std::as_const(object)["no_exist"];
+        REQUIRE(dummy.isNull());
+        REQUIRE(!dummy.getKey().has_value());
+
+        object["foo"] = std::move(dummy);
+        REQUIRE(object.contains("foo"));
+        REQUIRE(object.get("foo").isOk());
+
+        // dummy value should stay unaffected
+        REQUIRE(dummy.isNull());
+        REQUIRE(!dummy.getKey().has_value());
+
+        auto& dummy2 = std::as_const(object)["no_exist"];
+        REQUIRE(dummy2.isNull());
+        REQUIRE(!dummy2.getKey().has_value());
+    }
+}
+
+TEST_CASE("Float dump precision") {
+    matjson::Value value = 0.1f;
+    REQUIRE(value.dump(0) == "0.1");
+
+    value = 0.1;
+    REQUIRE(value.dump(0) == "0.1");
+
+    value = 1000.0f;
+    REQUIRE(value.dump(0) == "1000.0");
+
+    value = 1000.0;
+    REQUIRE(value.dump(0) == "1000.0");
+
+    value = 1e30f;
+    REQUIRE(value.dump(0) == "1e+30");
+
+    value = 1e30;
+    REQUIRE(value.dump(0) == "1e+30");
+}
+
+TEST_CASE("Comparisons") {
+    SUBCASE("Object equality checks keys") {
+        auto a = matjson::makeObject({{"a", 1}});
+        auto b = matjson::makeObject({{"b", 1}});
+        CHECK_FALSE(a == b);
+        CHECK(a == matjson::makeObject({{"a", 1}}));
+        CHECK_FALSE(a == matjson::makeObject({{"a", 2}}));
+    }
+
+    SUBCASE("Object ordering is irreflexive and consistent") {
+        auto a = matjson::makeObject({{"a", 1}});
+        auto b = matjson::makeObject({{"b", 1}});
+        CHECK_FALSE(a < a);
+        CHECK((a < b) != (b < a));
+        CHECK((a > b) == (b < a));
+    }
+
+    SUBCASE("Null ordering is irreflexive") {
+        matjson::Value n1 = nullptr, n2 = nullptr;
+        CHECK_FALSE(n1 < n2);
+        CHECK_FALSE(n1 > n2);
+        CHECK(n1 == n2);
+    }
+}
+
+TEST_CASE("Max array/object nesting") {
+    SUBCASE("Parser rejects excessive nesting instead of crashing") {
+        std::string deep(200000, '[');
+        deep += std::string(200000, ']');
+        auto res = matjson::parse(deep);
+        CHECK(res.isErr());
+    }
+
+    SUBCASE("Parser accepts nesting up to maxDepth") {
+        matjson::ParseOpts opts{.maxDepth = 3};
+        CHECK(matjson::parse("[[[1]]]", opts).isOk());
+        CHECK(matjson::parse("[[[[1]]]]", opts).isErr());
+    }
+
+    SUBCASE("Parser depth limit resets across sibling containers") {
+        matjson::ParseOpts opts{.maxDepth = 2};
+        // many siblings at depth 2 must not accumulate depth
+        CHECK(matjson::parse("[[1],[2],[3],[4],[5],[6]]", opts).isOk());
+        CHECK(matjson::parse("[[1],[2],[3, [10]],[4],[5],[6]]", opts).isErr());
+    }
+}
+
+TEST_CASE("Duplicate key parsing") {
+    matjson::Value value = matjson::parse(R"({"a": 10, "a": 123})").unwrap();
+    CHECK(value.size() == 1);
+    // keep only the last value, similar to other libraries (python, js, rust)
+    CHECK(value["a"] == 123);
+    CHECK(value.dump(0) == R"({"a":123})");
+}
+
+TEST_CASE("Duplicate keys keep the position of the first occurrence") {
+    auto v = matjson::parse(R"({"a":1,"b":2,"a":3})").unwrap();
+    CHECK(v.dump(0) == R"({"a":3,"b":2})");
+}
+
+TEST_CASE("Plain nulls") {
+    SUBCASE("Behave like any other null") {
+        matjson::Value n = nullptr;
+        CHECK(n.isNull());
+        CHECK(n.type() == matjson::Type::Null);
+        CHECK(!n.getKey().has_value());
+        CHECK(n.dump(0) == "null");
+        CHECK(n.size() == 0);
+        CHECK(n == nullptr);
+        CHECK(n == matjson::parse("null").unwrap());
+        CHECK_FALSE(n == matjson::Value(0));
+        CHECK_FALSE(n == matjson::Value::object());
+        CHECK(n.asBool().isErr());
+        CHECK(n.asString().isErr());
+        CHECK(n.get("a").isErr());
+        CHECK(n.get(0).isErr());
+        CHECK(n.begin() == n.end());
+    }
+
+    SUBCASE("Ordering is the same as for nodes with a payload") {
+        matjson::Value n = nullptr;
+        matjson::Value parsedNull = matjson::parse("null").unwrap();
+        for (auto const& other :
+             {matjson::Value(1),
+              matjson::Value("s"),
+              matjson::Value(true),
+              matjson::Value::array(),
+              matjson::Value::object()}) {
+            CHECK((other < n) == (other < parsedNull));
+            CHECK((n < other) == (parsedNull < other));
+            CHECK((n > other) == (parsedNull > other));
+            CHECK((other > n) == (other > parsedNull));
+        }
+        CHECK_FALSE(n < parsedNull);
+        CHECK_FALSE(parsedNull < n);
+        CHECK_FALSE(n > parsedNull);
+    }
+
+    SUBCASE("Copying and assigning") {
+        matjson::Value n = nullptr;
+        matjson::Value copy = n;
+        CHECK(copy.isNull());
+
+        matjson::Value v = 5;
+        v = n;
+        CHECK(v.isNull());
+        v = 7;
+        CHECK(v == 7);
+        v = std::move(n);
+        CHECK(v.isNull());
+    }
+
+    SUBCASE("Inside containers") {
+        matjson::Value arr = matjson::Value::array();
+        arr.push(nullptr);
+        arr.push(1);
+        arr.push(nullptr);
+        CHECK(arr.dump(0) == "[null,1,null]");
+        CHECK(arr == matjson::parse("[null, 1, null]").unwrap());
+
+        matjson::Value obj = matjson::makeObject({{"a", nullptr}, {"b", 1}});
+        CHECK(obj.dump(0) == R"({"a":null,"b":1})");
+        // an entry is still reachable by key, and still knows it
+        CHECK(obj.contains("a"));
+        CHECK(obj["a"].isNull());
+        CHECK(obj["a"].getKey().value() == "a");
+        for (auto const& [key, value] : obj) {
+            CHECK((key == "a" || key == "b"));
+            (void)value;
+        }
+    }
+}
+
+TEST_CASE("Moved-from values") {
+    SUBCASE("Standalone value becomes a plain null") {
+        matjson::Value a = "hello";
+        matjson::Value b = std::move(a);
+        CHECK(b == "hello");
+        CHECK(a.isNull());
+        CHECK(!a.getKey().has_value());
+        CHECK(a.dump(0) == "null");
+        // and can be reused
+        a = 12;
+        CHECK(a == 12);
+        a = std::move(b);
+        CHECK(a == "hello");
+        CHECK(b.isNull());
+    }
+
+    SUBCASE("Array elements survive reallocation") {
+        std::vector<matjson::Value> vec;
+        for (int i = 0; i < 1000; ++i) {
+            vec.emplace_back(i);
+            vec.emplace_back(std::to_string(i));
+        }
+        REQUIRE(vec.size() == 2000);
+        for (int i = 0; i < 1000; ++i) {
+            CHECK(vec[i * 2] == i);
+            CHECK(vec[i * 2 + 1] == std::to_string(i));
+        }
+    }
+
+    SUBCASE("Moved-from object entry keeps its key") {
+        auto obj = matjson::parse(R"({"a": 1, "b": "two", "c": [3]})").unwrap();
+        matjson::Value taken = std::move(obj["b"]);
+        CHECK(taken == "two");
+        CHECK(obj["b"].isNull());
+        CHECK(obj["b"].getKey().value() == "b");
+
+        std::vector<std::string> keys;
+        for (auto const& [key, value] : obj) {
+            keys.push_back(key);
+        }
+        CHECK(keys == std::vector<std::string>{"a", "b", "c"});
+        CHECK(obj.dump(0) == R"({"a":1,"b":null,"c":[3]})");
+    }
+
+    SUBCASE("Assigning into an entry keeps the entry's key") {
+        auto obj = matjson::parse(R"({"a": 1, "b": 2})").unwrap();
+        matjson::Value n = nullptr;
+        obj["a"] = n; // null copied over an entry
+        CHECK(obj["a"].isNull());
+        CHECK(obj["a"].getKey().value() == "a");
+
+        obj["b"] = std::move(n); // plain null moved over an entry
+        CHECK(obj["b"].isNull());
+        CHECK(obj["b"].getKey().value() == "b");
+
+        obj["a"] = 3; // and back to a real value
+        CHECK(obj["a"] == 3);
+        CHECK(obj["a"].getKey().value() == "a");
+        CHECK(obj.dump(0) == R"({"a":3,"b":null})");
+    }
+
+    SUBCASE("Moving a keyed value over a standalone value clears the key") {
+        auto obj = matjson::parse(R"({"a": 1})").unwrap();
+        matjson::Value standalone = nullptr;
+        standalone = std::move(obj["a"]);
+        CHECK(standalone == 1);
+        CHECK(!standalone.getKey().has_value());
+        CHECK(obj["a"].getKey().value() == "a");
+    }
+
+    SUBCASE("Moving a value out of the container that is being assigned to") {
+        matjson::Value v = matjson::parse(R"({"child": {"x": [1, 2, 3]}})").unwrap();
+        v = std::move(v["child"]);
+        CHECK(v.dump(0) == R"({"x":[1,2,3]})");
+
+        matjson::Value w = matjson::parse(R"({"child": {"x": [1, 2, 3]}})").unwrap();
+        w = w["child"];
+        CHECK(w.dump(0) == R"({"x":[1,2,3]})");
+    }
+
+    SUBCASE("Setting with set() and operator[]") {
+        matjson::Value obj;
+        obj.set("n", nullptr);
+        obj.set("s", "str");
+        obj["m"] = nullptr;
+        CHECK(obj.size() == 3);
+        CHECK(obj.dump(0) == R"({"n":null,"s":"str","m":null})");
+        CHECK(obj["n"].getKey().value() == "n");
+        CHECK(obj["m"].getKey().value() == "m");
+
+        obj.set("s", nullptr); // overwrite keeps position and key
+        CHECK(obj.dump(0) == R"({"n":null,"s":null,"m":null})");
+        CHECK(obj["s"].getKey().value() == "s");
+
+        // existing key through operator[] returns the same entry
+        auto& ref = obj["s"];
+        CHECK(&ref == &obj["s"]);
+        CHECK(obj.size() == 3);
+    }
+
+    SUBCASE("Dummy null is never modified") {
+        matjson::Value obj;
+        auto& dummy = std::as_const(obj)["missing"];
+        matjson::Value moved = std::move(dummy);
+        CHECK(moved.isNull());
+        CHECK(dummy.isNull());
+        CHECK(!dummy.getKey().has_value());
+
+        matjson::Value number = 5;
+        auto& writable = number["missing"]; // non-const access to a non-object gives the dummy too
+        writable = 5; // assigning into the dummy is a no-op
+        CHECK(std::as_const(obj)["missing"].isNull());
+        CHECK(std::as_const(number)["missing"].isNull());
     }
 }

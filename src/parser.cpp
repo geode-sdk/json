@@ -10,24 +10,38 @@ using namespace matjson;
 using namespace geode;
 using namespace std::string_view_literals;
 
-bool isWhitespace(char c) {
+static bool isWhitespace(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
+
+struct DepthGuard {
+    int& depth;
+
+    explicit DepthGuard(int& depth) : depth(depth) {
+        ++depth;
+    }
+
+    ~DepthGuard() {
+        --depth;
+    }
+};
 
 template <class S = std::istream&>
 struct StringStream {
     S stream;
     std::streambuf* buffer = nullptr;
     ParseOpts opts{};
-    int line = 1, column = 1, offset = 0;
+    std::size_t offset = 0;
+    int line = 1, column = 1;
+    int depth = 0;
 
     static constexpr bool isStream = std::is_same_v<S, std::istream&>;
 
-    auto error(std::string_view msg) const noexcept {
+    auto error(std::string_view msg) const {
         return Err(ParseError(std::string(msg), offset, line, column));
     }
 
-    void adjustCounters(char ch) noexcept {
+    void adjustCounters(char ch) {
         ++offset;
         if (ch == '\n') {
             ++line;
@@ -38,7 +52,7 @@ struct StringStream {
         }
     }
 
-    Result<char, ParseError> take() noexcept {
+    Result<char, ParseError> take() {
         char ch;
         if constexpr (isStream) {
             auto res = buffer->sbumpc();
@@ -82,7 +96,7 @@ struct StringStream {
         }
     }
 
-    Result<char, ParseError> peek() noexcept {
+    Result<char, ParseError> peek() {
         if constexpr (isStream) {
             auto ret = buffer->sgetc();
             if (ret == std::char_traits<char>::eof()) {
@@ -98,7 +112,7 @@ struct StringStream {
     }
 
     // takes until the next char is not whitespace
-    Result<void, ParseError> skipWhitespace() noexcept {
+    Result<void, ParseError> skipWhitespace() {
         if constexpr (isStream) {
             while (true) {
                 auto ret = buffer->sgetc();
@@ -131,7 +145,7 @@ struct StringStream {
         return Ok();
     }
 
-    Result<void, ParseError> skipComment() noexcept {
+    Result<void, ParseError> skipComment() {
         // '/'
         (void)this->take();
 
@@ -166,7 +180,7 @@ struct StringStream {
         return Ok();
     }
 
-    explicit operator bool() const noexcept {
+    explicit operator bool() const {
         if constexpr (isStream) {
             return buffer->sgetc() != std::char_traits<char>::eof();
         }
@@ -200,7 +214,7 @@ Result<ValuePtr, ParseError> parseConstant(StringStream<S>& stream) {
     return stream.error("invalid constant");
 }
 
-void encodeUTF8(std::string& str, int32_t code_point) {
+static void encodeUTF8(std::string& str, int32_t code_point) {
     if (code_point < 0x80) {
         str.push_back(static_cast<char>(code_point));
     }
@@ -226,7 +240,7 @@ void encodeUTF8(std::string& str, int32_t code_point) {
 }
 
 template <class S>
-Result<std::string, ParseError> parseString(StringStream<S>& stream) noexcept {
+Result<std::string, ParseError> parseString(StringStream<S>& stream) {
     // when this function is called we already know the first character is a quote
     GEODE_UNWRAP(stream.take());
     std::string str;
@@ -303,7 +317,7 @@ Result<std::string, ParseError> parseString(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) {
     std::string buffer;
     bool isFloating = false;
     bool isNegative = false;
@@ -394,13 +408,18 @@ Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) noexcept {
 
 // parses a json element with optional whitespace around it
 template <class S>
-Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept;
+Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream);
 
 template <class S>
-Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) {
+    if (stream.depth >= stream.opts.maxDepth) {
+        return stream.error("max nesting depth exceeded");
+    }
+    DepthGuard guard(stream.depth);
+
     GEODE_UNWRAP(stream.take());
     GEODE_UNWRAP(stream.skipWhitespace());
-    std::vector<Value> object;
+    OrderedMap object;
     GEODE_UNWRAP_INTO(char p, stream.peek());
     if (p != '}') {
         while (true) {
@@ -420,8 +439,8 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
             }
 
             GEODE_UNWRAP_INTO(auto value, parseElement(stream));
-            value->setKey(std::move(key));
-            object.emplace_back(std::move(ValueImpl::asValue(std::move(value))));
+            value->setKey(key);
+            object.insert_or_assign(std::move(key), ValueImpl::asValue(std::move(value)));
 
             GEODE_UNWRAP_INTO(char c, stream.peek());
             if (c == ',') {
@@ -445,7 +464,12 @@ Result<ValuePtr, ParseError> parseObject(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) {
+    if (stream.depth >= stream.opts.maxDepth) {
+        return stream.error("max nesting depth exceeded");
+    }
+    DepthGuard guard(stream.depth);
+
     GEODE_UNWRAP(stream.take());
     GEODE_UNWRAP(stream.skipWhitespace());
     std::vector<Value> array;
@@ -477,15 +501,15 @@ Result<ValuePtr, ParseError> parseArray(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) {
     GEODE_UNWRAP_INTO(char p, stream.peek());
     switch (p) {
         case 't':
         case 'f':
         case 'n': return parseConstant(stream);
         case '"': {
-            return parseString(stream).map([](auto value) {
-                return std::make_unique<ValueImpl>(Type::String, value);
+            return parseString(stream).map([](auto&& value) {
+                return std::make_unique<ValueImpl>(Type::String, std::move(value));
             });
         }
         case '{': return parseObject(stream);
@@ -506,7 +530,7 @@ Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) {
     GEODE_UNWRAP(stream.skipWhitespace());
     GEODE_UNWRAP_INTO(auto value, parseValue(stream));
     GEODE_UNWRAP(stream.skipWhitespace());
@@ -514,7 +538,7 @@ Result<ValuePtr, ParseError> parseElement(StringStream<S>& stream) noexcept {
 }
 
 template <class S>
-Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) noexcept {
+Result<ValuePtr, ParseError> parseRoot(StringStream<S>& stream) {
     GEODE_UNWRAP_INTO(auto value, parseElement(stream));
     // if theres anything left in the stream that is not whitespace
     // it should be considered an error

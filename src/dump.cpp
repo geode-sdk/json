@@ -1,22 +1,17 @@
+#include "external/zmij.h"
 #include "impl.hpp"
 
 #include <array>
-#include <charconv>
 #include <cmath>
 #include <cstdio>
 #include <matjson.hpp>
 #include <string>
 
-// macOS and android still lack floating point std::to_chars support
-#ifndef __cpp_lib_to_chars
-    #include "external/dragonbox.h"
-#endif
-
 using namespace matjson;
 using namespace geode;
 using namespace std::string_view_literals;
 
-void dumpJsonString(std::string_view str, std::string& out) {
+static void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
     for (char c : str) {
         switch (c) {
@@ -42,7 +37,7 @@ void dumpJsonString(std::string_view str, std::string& out) {
     out.push_back('"');
 }
 
-void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
+static void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
     if (impl.isInt()) {
         out += std::to_string(impl.asNumber<intmax_t>());
     }
@@ -50,37 +45,39 @@ void dumpJsonNumber(ValueImpl const& impl, std::string& out) {
         out += std::to_string(impl.asNumber<uintmax_t>());
     }
     else {
-        auto number = impl.asNumber<double>();
-        if (std::isnan(number) || std::isinf(number)) {
-            // JSON does not support inf/nan values, so copy what other libraries do
-            // which is to just turn them into null
-            out += "null"sv;
-            return;
+        auto const dumpFloat = [&](auto number) {
+            if (std::isnan(number) || std::isinf(number)) {
+                // JSON does not support inf/nan values, so copy what other libraries do
+                // which is to just turn them into null
+                out += "null"sv;
+                return;
+            }
+            // always use zmij instead of to_chars for consistency across platforms
+            std::array<char, 40> buffer;
+            auto* end = zmij::write(buffer.data(), buffer.size(), number);
+            auto str = std::string_view(buffer.data(), end - buffer.data());
+            out += str;
+            if (str.find('.') == std::string_view::npos && str.find('e') == std::string_view::npos) {
+                out += ".0"sv;
+            }
+        };
+        if (impl.isFloat()) {
+            dumpFloat(impl.asNumber<float>());
         }
-#ifndef __cpp_lib_to_chars
-        // use the dragonbox algorithm, code from
-        // https://github.com/abolz/Drachennest/blob/master/src/dragonbox.cc
-        std::array<char, dragonbox::DtoaMinBufferLength> buffer;
-        auto* end = dragonbox::Dtoa(buffer.data(), number);
-        out += std::string_view(buffer.data(), end - buffer.data());
-#else
-        std::array<char, 32> buffer;
-        auto chars_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), number);
-        if (chars_result.ec == std::errc::value_too_large) [[unlikely]] {
-            // this should never happen
-            std::abort();
+        else {
+            dumpFloat(impl.asNumber<double>());
         }
-        out += std::string_view(buffer.data(), chars_result.ptr - buffer.data());
-#endif
     }
 }
 
-void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+static void dumpImpl(Value const& value, std::string& out, int indentation, int depth) {
+    if (value.isNull()) {
+        out += "null"sv;
+        return;
+    }
     auto& impl = ValueImpl::fromValue(value);
     switch (value.type()) {
-        case Type::Null: {
-            out += "null"sv;
-        } break;
+        case Type::Null: break; // handled above
         case Type::Bool: {
             out += impl.asBool() ? "true"sv : "false"sv;
         } break;
@@ -111,13 +108,12 @@ void dumpImpl(Value const& value, std::string& out, int indentation, int depth) 
                     out.push_back('\n');
                     char iden = indentation == TAB_INDENTATION ? '\t' : ' ';
                     size_t size = indentation == TAB_INDENTATION ? depth : depth * indentation;
-                    out.reserve(out.size() + size);
                     for (size_t i = 0; i < size; ++i) {
                         out.push_back(iden);
                     }
                 }
             };
-            auto const& obj = impl.asArray();
+            auto const& obj = impl.asMap();
             if (obj.empty()) {
                 out.push_back('}');
                 break;
@@ -146,6 +142,7 @@ void dumpImpl(Value const& value, std::string& out, int indentation, int depth) 
 }
 
 std::string Value::dump(int indentationSize) const {
+    if (indentationSize < 0) indentationSize = TAB_INDENTATION;
     std::string out;
     dumpImpl(*this, out, indentationSize, 0);
     return out;
