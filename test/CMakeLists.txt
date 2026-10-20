@@ -3,9 +3,9 @@ Include(FetchContent)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-CPMAddPackage("gh:fmtlib/fmt#12.2.0")
-
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/manual.cpp")
+    CPMAddPackage("gh:fmtlib/fmt#12.2.0")
+
     add_executable(manual-testing manual.cpp)
     target_link_libraries(manual-testing PRIVATE mat-json fmt)
 endif()
