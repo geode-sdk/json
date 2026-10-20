@@ -375,8 +375,7 @@ bool Value::operator<(Value const& other) const {
 }
 
 bool Value::operator>(Value const& other) const {
-    if (!m_impl || !other.m_impl) return other.type() < this->type();
-    return *m_impl > *other.m_impl;
+    return other < *this;
 }
 
 bool Value::isExactlyDouble() const {

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <matjson.hpp>
 #include <tsl/ordered_map.h>
+#include <utility>
 #include <variant>
 
 using std::intmax_t;
@@ -11,7 +13,7 @@ using std::uintmax_t;
 
 // stolen from geode sorry
 
-static uint64_t fnv1aHash(std::string_view str) {
+inline uint64_t fnv1aHash(std::string_view str) {
     uint64_t hash = 0xcbf29ce484222325;
     for (char c : str) {
         hash ^= c;
@@ -37,6 +39,49 @@ using OrderedMap = tsl::ordered_map<
     std::allocator<std::pair<std::string, matjson::Value>>,
     std::vector<std::pair<std::string, matjson::Value>>>;
 
+template <class T, class U>
+std::partial_ordering compareIntInt(T a, U b) {
+    if (std::cmp_equal(a, b)) return std::partial_ordering::equivalent;
+    return std::cmp_less(a, b) ? std::partial_ordering::less : std::partial_ordering::greater;
+}
+
+template <class I>
+std::partial_ordering compareIntDouble(I i, double d) {
+    if (std::isnan(d)) return std::partial_ordering::unordered;
+    if (double(i) == d) return std::partial_ordering::equivalent;
+    return double(i) < d ? std::partial_ordering::less : std::partial_ordering::greater;
+}
+
+template <class T, class U>
+std::partial_ordering compareNumbers(T a, U b) {
+    if constexpr (std::is_integral_v<T> && std::is_integral_v<U>) {
+        return compareIntInt(a, b);
+    }
+    else if constexpr (std::is_integral_v<T>) {
+        // T is int, U is float
+        return compareIntDouble(a, b);
+    }
+    else if constexpr (std::is_integral_v<U>) {
+        // T is float, U is int
+        auto res = compareIntDouble(b, a);
+        if (res == std::partial_ordering::less) return std::partial_ordering::greater;
+        if (res == std::partial_ordering::greater) return std::partial_ordering::less;
+        return res;
+    }
+    else {
+        return a <=> b;
+    }
+}
+
+template <class T>
+concept Numerical =
+    !std::is_same_v<T, bool> && (std::is_integral_v<T> || std::is_floating_point_v<T>);
+
+template <class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
+
 class matjson::ValueImpl {
     Type m_type;
     std::optional<std::string> m_key;
@@ -55,7 +100,7 @@ public:
         auto& map = m_value.emplace<OrderedMap>();
         for (auto& value : values) {
             // a null m_impl means a plain null without a key, which should never
-            // happen here, but fall back to an empty key just like before
+            // happen here, but fall back to an empty key just incase
             std::string key;
             if (value.m_impl && value.m_impl->key()) key = *value.m_impl->key();
             map.insert_or_assign(std::move(key), std::move(value));
@@ -152,97 +197,52 @@ public:
     }
 
     template <class Op>
-    bool operatorImpl(ValueImpl const& other, Op&& operation, bool null, bool fall) const {
+    bool operatorImpl(ValueImpl const& other, Op&& operation) const {
         switch (m_type) {
-            case Type::Null: return null;
             case Type::Bool: return operation(asBool(), other.asBool());
             case Type::String: return operation(asString(), other.asString());
             case Type::Array: return operation(asArray(), other.asArray());
-            case Type::Number: {
-                static constexpr auto INDEX_DOUBLE = 2;
-                static constexpr auto INDEX_INT = 3;
-                static constexpr auto INDEX_UINT = 4;
-                static constexpr auto INDEX_FLOAT = 7;
-                using VariantType = std::remove_cvref_t<decltype(m_value)>;
-                static_assert(
-                    std::is_same_v<std::variant_alternative_t<INDEX_DOUBLE, VariantType>, double>
-                );
-                static_assert(
-                    std::is_same_v<std::variant_alternative_t<INDEX_INT, VariantType>, std::intmax_t>
-                );
-                static_assert(
-                    std::is_same_v<std::variant_alternative_t<INDEX_UINT, VariantType>, std::uintmax_t>
-                );
-                static_assert(
-                    std::is_same_v<std::variant_alternative_t<INDEX_FLOAT, VariantType>, float>
-                );
-                auto const asDouble = [](auto const& value) {
-                    return *std::get_if<double>(&value.m_value);
-                };
-                auto const asFloat = [](auto const& value) {
-                    return *std::get_if<float>(&value.m_value);
-                };
-                auto const asInt = [](auto const& value) {
-                    return *std::get_if<std::intmax_t>(&value.m_value);
-                };
-                auto const asUInt = [](auto const& value) {
-                    return *std::get_if<std::uintmax_t>(&value.m_value);
-                };
-                switch (m_value.index()) {
-                    case INDEX_DOUBLE:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asDouble(*this), asDouble(other));
-                            case INDEX_FLOAT: return operation(asDouble(*this), asFloat(other));
-                            case INDEX_INT: return operation(asDouble(*this), asInt(other));
-                            case INDEX_UINT: return operation(asDouble(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    case INDEX_FLOAT:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asFloat(*this), asDouble(other));
-                            case INDEX_FLOAT: return operation(asFloat(*this), asFloat(other));
-                            case INDEX_INT: return operation(asFloat(*this), asInt(other));
-                            case INDEX_UINT: return operation(asFloat(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    case INDEX_INT:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asInt(*this), asDouble(other));
-                            case INDEX_FLOAT: return operation(asInt(*this), asFloat(other));
-                            case INDEX_INT: return operation(asInt(*this), asInt(other));
-                            case INDEX_UINT: return operation(asInt(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    case INDEX_UINT:
-                        switch (other.m_value.index()) {
-                            case INDEX_DOUBLE: return operation(asUInt(*this), asDouble(other));
-                            case INDEX_FLOAT: return operation(asUInt(*this), asFloat(other));
-                            case INDEX_INT: return operation(asUInt(*this), asInt(other));
-                            case INDEX_UINT: return operation(asUInt(*this), asUInt(other));
-                            default: return fall;
-                        }
-                    default: return fall;
-                }
-            }
-            default: return fall;
+            case Type::Object: return operation(asMap(), other.asMap());
+            // handled outside of operatorImpl
+            case Type::Null:
+            case Type::Number:
+            default: return false;
         }
+    }
+
+    std::partial_ordering compareNumbers(ValueImpl const& other) const {
+        return std::visit(
+            overloaded{
+                [&](Numerical auto const& a, Numerical auto const& b) {
+                    return ::compareNumbers(a, b);
+                },
+                [](auto const&, auto const&) {
+                    // irrelevant
+                    return std::partial_ordering::unordered;
+                }
+            },
+            m_value,
+            other.m_value
+        );
     }
 
     bool operator==(ValueImpl const& other) const {
         if (m_type != other.m_type) return false;
-        if (m_type == Type::Object) return asMap() == other.asMap();
-        return operatorImpl(other, std::equal_to<>{}, true, false);
+        if (m_type == Type::Null) return true;
+        if (m_type == Type::Number) {
+            return this->compareNumbers(other) == 0;
+        }
+        return operatorImpl(other, std::equal_to<>{});
     }
 
     bool operator<(ValueImpl const& other) const {
         if (m_type < other.m_type) return true;
         if (m_type > other.m_type) return false;
-        if (m_type == Type::Object) return asMap() < other.asMap();
-        return operatorImpl(other, std::less<>{}, false, false);
-    }
-
-    bool operator>(ValueImpl const& other) const {
-        return other < *this;
+        if (m_type == Type::Null) return false;
+        if (m_type == Type::Number) {
+            return this->compareNumbers(other) < 0;
+        }
+        return operatorImpl(other, std::less<>{});
     }
 };
 
