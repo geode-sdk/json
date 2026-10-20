@@ -162,7 +162,7 @@ public:
     }
 
     static ValueImpl& fromValue(Value const& value) {
-        return *value.m_impl.get();
+        return *value.m_impl;
     }
 
     auto const& getVariant() {

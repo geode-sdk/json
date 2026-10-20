@@ -509,7 +509,7 @@ Result<ValuePtr, ParseError> parseValue(StringStream<S>& stream) {
         case 'n': return parseConstant(stream);
         case '"': {
             return parseString(stream).map([](auto&& value) {
-                return std::make_unique<ValueImpl>(Type::String, std::move(value));
+                return std::make_unique<ValueImpl>(Type::String, std::forward<decltype(value)>(value));
             });
         }
         case '{': return parseObject(stream);
