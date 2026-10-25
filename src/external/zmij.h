@@ -28,12 +28,45 @@
 
 #ifdef _MSC_VER
 #  include <intrin.h>  // __lzcnt64/_umul128/__umulh
+#  define ZMIJ_MSC_VER _MSC_VER
+#else
+#  define ZMIJ_MSC_VER 0
+#endif
+
+#if defined(__has_builtin) && !defined(ZMIJ_NO_BUILTINS)
+#  define ZMIJ_HAS_BUILTIN(x) __has_builtin(x)
+#else
+#  define ZMIJ_HAS_BUILTIN(x) 0
+#endif
+// IBM double-double, the ppc64le default long double, has a 106-bit significand
+// and is not IEEE 754, so the long double API is not provided for it.
+#define ZMIJ_USE_LONG_DOUBLE (LDBL_MANT_DIG != 106)
+#ifdef __has_attribute
+#  define ZMIJ_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+#  define ZMIJ_HAS_ATTRIBUTE(x) 0
+#endif
+#ifdef __has_cpp_attribute
+#  define ZMIJ_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+#  define ZMIJ_HAS_CPP_ATTRIBUTE(x) 0
 #endif
 
 #ifdef __cpp_lib_is_constant_evaluated
 #  define ZMIJ_CONSTEXPR20 constexpr
 #else
 #  define ZMIJ_CONSTEXPR20
+#endif
+
+#ifdef ZMIJ_USE_IS_CONSTANT_EVALUATED
+// Use the provided definition.
+#elif defined(__cpp_lib_is_constant_evaluated) ||                    \
+    ZMIJ_HAS_BUILTIN(__builtin_is_constant_evaluated) ||             \
+    (defined(_MSC_VER) && _MSC_VER >= 1925 && !defined(__clang__) && \
+     !defined(__CUDACC__) && !defined(ZMIJ_NO_BUILTINS))
+#  define ZMIJ_USE_IS_CONSTANT_EVALUATED 1
+#else
+#  define ZMIJ_USE_IS_CONSTANT_EVALUATED 0
 #endif
 
 // Disabling C++14 relaxed constexpr costs ~2x, so it is opt-in, not detected.
@@ -47,6 +80,80 @@
 #  define ZMIJ_CONSTEXPR
 // A default member initializer makes its class a non-aggregate in C++11.
 #  define ZMIJ_DEFAULT(...)
+#endif
+
+#ifdef __x86_64__
+#  define ZMIJ_X86_64 1
+#else
+#  define ZMIJ_X86_64 0
+#endif
+
+#ifndef ZMIJ_USE_SIMD
+#  define ZMIJ_USE_SIMD 1
+#endif
+
+#ifdef ZMIJ_USE_NEON
+// Use the provided definition.
+#elif defined(__ARM_NEON) || defined(_M_ARM64)
+#  define ZMIJ_USE_NEON ZMIJ_USE_SIMD
+#else
+#  define ZMIJ_USE_NEON 0
+#endif
+
+#ifdef ZMIJ_USE_SSE
+// Use the provided definition.
+#elif defined(__SSE2__)
+#  define ZMIJ_USE_SSE ZMIJ_USE_SIMD
+#elif defined(_M_AMD64) || (defined(_M_IX86_FP) && _M_IX86_FP == 2)
+#  define ZMIJ_USE_SSE ZMIJ_USE_SIMD
+#else
+#  define ZMIJ_USE_SSE 0
+#endif
+
+#ifdef ZMIJ_USE_SSE4_1
+// Use the provided definition.
+static_assert(!ZMIJ_USE_SSE4_1 || ZMIJ_USE_SSE, "SSE4.1 requires SSE");
+#elif defined(__SSE4_1__) || defined(__AVX__)
+// On MSVC there's no way to check for SSE4.1 specifically so check __AVX__.
+#  define ZMIJ_USE_SSE4_1 ZMIJ_USE_SSE
+#else
+#  define ZMIJ_USE_SSE4_1 0
+#endif
+
+#ifdef ZMIJ_OPTIMIZE_SIZE
+// Use the provided definition.
+#elif defined(__OPTIMIZE_SIZE__)
+#  define ZMIJ_OPTIMIZE_SIZE 1
+#else
+#  define ZMIJ_OPTIMIZE_SIZE 0
+#endif
+
+#if ZMIJ_HAS_ATTRIBUTE(always_inline) && !ZMIJ_OPTIMIZE_SIZE
+#  define ZMIJ_INLINE __attribute__((always_inline)) inline
+#elif ZMIJ_MSC_VER
+#  define ZMIJ_INLINE __forceinline
+#else
+#  define ZMIJ_INLINE inline
+#endif
+
+#if ZMIJ_HAS_CPP_ATTRIBUTE(likely) && ZMIJ_HAS_CPP_ATTRIBUTE(unlikely)
+#  define ZMIJ_LIKELY likely
+#  define ZMIJ_UNLIKELY unlikely
+#else
+#  define ZMIJ_LIKELY
+#  define ZMIJ_UNLIKELY
+#endif
+
+#if ZMIJ_HAS_CPP_ATTRIBUTE(maybe_unused)
+#  define ZMIJ_MAYBE_UNUSED maybe_unused
+#else
+#  define ZMIJ_MAYBE_UNUSED
+#endif
+
+#ifdef __GNUC__
+#  define ZMIJ_ASM(x) asm x
+#else
+#  define ZMIJ_ASM(x)
 #endif
 
 namespace zmij {
@@ -72,6 +179,18 @@ enum class format {
   hex = 4,
 };
 
+namespace detail {
+struct no_long_double {
+  operator double() const noexcept;  // Intentionally undefined.
+};
+}  // namespace detail
+
+// The long double API's parameter type: long double, or where that API isn't
+// provided (IBM double-double), a type no argument converts to, so those
+// overloads drop out of overload resolution.
+using long_double = std::conditional<ZMIJ_USE_LONG_DOUBLE, long double,
+                                     detail::no_long_double>::type;
+
 // Minimum buffer sizes for the shortest `write`, one per floating-point type.
 enum {
   float_buffer_size = 17,
@@ -80,11 +199,24 @@ enum {
   long_double_buffer_size = 44,
 };
 
+// Minimum buffer capacities for integer write functions. They include space
+// for whole-block stores that may extend past the returned end pointer.
+enum {
+  uint32_buffer_size = 16,
+  int32_buffer_size = 17,
+  uint64_buffer_size = 20,
+  int64_buffer_size = 21,
+  uint128_buffer_size = 48,
+  int128_buffer_size = 49,
+};
+
 namespace detail {
 
 constexpr auto is_constant_evaluated() noexcept -> bool {
 #ifdef __cpp_lib_is_constant_evaluated
   return std::is_constant_evaluated();
+#elif ZMIJ_USE_IS_CONSTANT_EVALUATED
+  return __builtin_is_constant_evaluated();
 #else
   return false;
 #endif
@@ -177,16 +309,14 @@ inline ZMIJ_CONSTEXPR auto umul128(uint64_t x, uint64_t y) noexcept
 #if ZMIJ_USE_INT128
   return uint128_t(x) * y;
 #else
-#  ifdef __cpp_lib_is_constant_evaluated
-  if (!std::is_constant_evaluated()) {
-#    if defined(_M_AMD64)
+#  if ZMIJ_USE_IS_CONSTANT_EVALUATED && defined(_M_AMD64)
+  if (!is_constant_evaluated()) {
     uint64_t hi = 0;
     uint64_t lo = _umul128(x, y, &hi);
     return {hi, lo};
-#    elif defined(_M_ARM64)
-    return {__umulh(x, y), x * y};
-#    endif
   }
+#  elif ZMIJ_USE_IS_CONSTANT_EVALUATED && defined(_M_ARM64)
+  if (!is_constant_evaluated()) return {__umulh(x, y), x * y};
 #  endif
   uint64_t a = x >> 32;
   uint64_t b = uint32_t(x);
@@ -292,7 +422,7 @@ constexpr
 
 // Compressed 128-bit significands of powers of 10.
 template <typename = void> struct pow10_data {
-  static constexpr uint64_t minor[] = {
+  static constexpr uint64_t minor[28] = {
       0x8000000000000000, 0xa000000000000000, 0xc800000000000000,
       0xfa00000000000000, 0x9c40000000000000, 0xc350000000000000,
       0xf424000000000000, 0x9896800000000000, 0xbebc200000000000,
@@ -304,7 +434,7 @@ template <typename = void> struct pow10_data {
       0xd3c21bcecceda100, 0x84595161401484a0, 0xa56fa5b99019a5c8,
       0xcecb8f27f4200f3a,
   };
-  static constexpr uint128 major[] = {
+  static constexpr uint128 major[25] = {
       {0xaddcb9e83c6b1793, 0xdf4abe242a1bbf3e},  // -331 (+1 ULP: see fixups)
       {0xaf8e5410288e1b6f, 0x07ecf0ae5ee44dda},  // -303
       {0xb1442798f49ffb4a, 0x99cd11cfdf41779d},  // -275
@@ -331,7 +461,7 @@ template <typename = void> struct pow10_data {
       {0xd94ad8b1c7380874, 0x18375281ae7822bd},  //  313 (+1 ULP: see fixups)
       {0xdb68c2ca82ed2a05, 0xa67398db9f6820e1},  //  341
   };
-  static constexpr uint32_t fixups[] = {
+  static constexpr uint32_t fixups[21] = {
       0x8d8fc810, 0x06100293, 0x19000000, 0x00100000, 0x00000908, 0x00000000,
       0x04e00300, 0x3807e0b2, 0x3d83d793, 0x0006f5cc, 0x00000000, 0xffff0000,
       0x8076337d, 0x4ff45ba0, 0x09405033, 0x034376d9, 0x09000000, 0x4e100501,
@@ -377,8 +507,7 @@ inline ZMIJ_CONSTEXPR auto compute_pow10(int exp) noexcept -> uint128 {
 // 10^dec_exp puts the decimal point in different bit positions:
 //   3 * 2**59 / 100 = 1.72...e+16  (needs shift = 1 + 1)
 //   3 * 2**60 / 100 = 3.45...e+16  (needs shift = 2 + 1)
-inline ZMIJ_CONSTEXPR auto compute_exp_shift(int bin_exp,
-                                             int dec_exp) noexcept
+inline ZMIJ_CONSTEXPR auto compute_exp_shift(int bin_exp, int dec_exp) noexcept
     -> signed char {
   assert(dec_exp >= -350 && dec_exp <= 350);
   // log2_pow10_sig = round(log2(10) * 2**log2_pow10_exp) + 1
@@ -391,8 +520,8 @@ inline ZMIJ_CONSTEXPR auto compute_exp_shift(int bin_exp,
 
 // Converts the nonzero finite binary value bin_sig * 2**bin_exp using yy.
 template <typename Float>
-inline ZMIJ_CONSTEXPR20 auto to_decimal(uint64_t bin_sig,
-                                        int bin_exp) noexcept -> dec_fp<> {
+inline ZMIJ_CONSTEXPR20 auto to_decimal(uint64_t bin_sig, int bin_exp) noexcept
+    -> dec_fp<> {
   assert(bin_sig != 0);
   constexpr uint64_t implicit_bit = float_traits<Float>::implicit_bit;
   bool irregular = bin_sig == implicit_bit;
@@ -581,12 +710,17 @@ template <typename Float>
 auto write_hex(char* out, size_t n, Float value, int precision,
                bool prefix = true) noexcept -> size_t;
 
-// When long double == double it has no explicit instantiations, so forward the
-// long double detail writers to their double counterparts.
-#if LDBL_MANT_DIG == DBL_MANT_DIG
+// long_double has no explicit instantiations when long double == double or the
+// long double API isn't provided, so forward its detail functions to double.
+#if LDBL_MANT_DIG == DBL_MANT_DIG || !ZMIJ_USE_LONG_DOUBLE
+template <>
+inline auto to_decimal_big(long_double value) noexcept -> dec_fp<uint128_t> {
+  dec_fp<> dec = to_decimal(double(value));
+  return {dec.sig, dec.exp, dec.negative};
+}
 // There is no write_big for double, so route shortest through write.
 template <>
-inline auto write_big(char* out, size_t n, long double value) noexcept
+inline auto write_big(char* out, size_t n, long_double value) noexcept
     -> size_t {
   char buffer[double_buffer_size];
   size_t size = size_t(write(buffer, double(value)) - buffer);
@@ -594,21 +728,21 @@ inline auto write_big(char* out, size_t n, long double value) noexcept
   return size;
 }
 template <>
-inline auto write_big(char* out, size_t n, long double value, int precision,
+inline auto write_big(char* out, size_t n, long_double value, int precision,
                       format fmt) noexcept -> size_t {
   return write_big(out, n, double(value), precision, fmt);
 }
 template <>
-inline auto write_hex(char* buffer, long double value, bool prefix) noexcept
+inline auto write_hex(char* buffer, long_double value, bool prefix) noexcept
     -> char* {
   return write_hex(buffer, double(value), prefix);
 }
 template <>
-inline auto write_hex(char* out, size_t n, long double value, int precision,
+inline auto write_hex(char* out, size_t n, long_double value, int precision,
                       bool prefix) noexcept -> size_t {
   return write_hex(out, n, double(value), precision, prefix);
 }
-#endif  // LDBL_MANT_DIG == DBL_MANT_DIG
+#endif  // LDBL_MANT_DIG == DBL_MANT_DIG || !ZMIJ_USE_LONG_DOUBLE
 
 // Returns the past-the-end pointer after writing min(size, n) chars to `out`.
 inline auto clamp_end(char* out, size_t size, size_t n) noexcept -> char* {
@@ -618,14 +752,21 @@ inline auto clamp_end(char* out, size_t size, size_t n) noexcept -> char* {
 // Copies the result in [`buffer`, `end`) to `out`, truncating after `n` chars,
 // and returns the past-the-end pointer.
 inline ZMIJ_CONSTEXPR20 auto copy_clamped(char* out, size_t n,
-                                         const char* buffer,
-                                         const char* end) noexcept -> char* {
+                                          const char* buffer,
+                                          const char* end) noexcept -> char* {
   size_t size = size_t(end - buffer);
-  if (is_constant_evaluated())
-    return copy_n(out, buffer, size < n ? size : n);
+  if (is_constant_evaluated()) return copy_n(out, buffer, size < n ? size : n);
   memcpy(out, buffer, size < n ? size : n);
   return clamp_end(out, size, n);
 }
+
+// Writes an unsigned integer's decimal representation to `out` and returns its
+// logical end. Whole-block stores may extend past that pointer but never past
+// the corresponding *_buffer_size capacity.
+template <typename UInt> auto itoa(char* out, UInt value) noexcept -> char*;
+
+template <typename Int>
+auto itoa_signed(char* out, Int value) noexcept -> char*;
 
 }  // namespace detail
 
@@ -638,14 +779,9 @@ inline auto to_decimal(float value) noexcept -> dec_fp<> {
 inline auto to_decimal(double value) noexcept -> dec_fp<> {
   return detail::to_decimal(value);
 }
-inline auto to_decimal(long double value) noexcept
+inline auto to_decimal(long_double value) noexcept
     -> dec_fp<detail::uint128_t> {
-#if LDBL_MANT_DIG == DBL_MANT_DIG
-  dec_fp<> dec = detail::to_decimal(double(value));
-  return {dec.sig, dec.exp, dec.negative};
-#else
   return detail::to_decimal_big(value);
-#endif
 }
 
 /// Buffer sizes for the write* functions, usable in generic code as
@@ -669,7 +805,7 @@ template <> struct buffer_sizes<double> {
 // long double: `scientific` is sized to round-trip: precision 35 (scientific)
 // or 36 (general). `fixed` is omitted as it would need an impractical buffer,
 // so callers must size fixed output themselves.
-template <> struct buffer_sizes<long double> {
+template <> struct buffer_sizes<long_double> {
   static constexpr size_t shortest = long_double_buffer_size;  // write
   static constexpr size_t scientific = 44;  // write_scientific (and general)
   // Worst case is IEEE binary128: 1 sign + "0x1." + 28 digits + "p+16383".
@@ -685,8 +821,8 @@ inline ZMIJ_CONSTEXPR20 auto write(char* out, size_t n, double value) noexcept
     -> char* {
   if (detail::is_constant_evaluated()) {
     char buffer[double_buffer_size] = {};
-    return detail::copy_clamped(
-        out, n, buffer, detail::write_constexpr(buffer, value));
+    return detail::copy_clamped(out, n, buffer,
+                                detail::write_constexpr(buffer, value));
   }
   char buffer[double_buffer_size];
   if (n >= sizeof(buffer)) return detail::write(out, value);
@@ -697,18 +833,77 @@ inline ZMIJ_CONSTEXPR20 auto write(char* out, size_t n, float value) noexcept
     -> char* {
   if (detail::is_constant_evaluated()) {
     char buffer[float_buffer_size] = {};
-    return detail::copy_clamped(
-        out, n, buffer, detail::write_constexpr(buffer, value));
+    return detail::copy_clamped(out, n, buffer,
+                                detail::write_constexpr(buffer, value));
   }
   char buffer[float_buffer_size];
   if (n >= sizeof(buffer)) return detail::write(out, value);
   return detail::copy_clamped(out, n, buffer, detail::write(buffer, value));
 }
 
-inline auto write(char* out, size_t n, long double value) noexcept -> char* {
+inline auto write(char* out, size_t n, long_double value) noexcept -> char* {
   if (LDBL_MANT_DIG == DBL_MANT_DIG) return write(out, n, double(value));
   return detail::clamp_end(out, detail::write_big(out, n, value), n);
 }
+
+/// Writes the decimal representation of `value` to `out` without a null
+/// terminator. Returns a pointer past the last character written; if the
+/// representation exceeds `n` characters, only the first `n` are written.
+inline auto write(char* out, size_t n, int value) noexcept -> char* {
+  char buffer[int32_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa_signed(out, int32_t(value));
+  return detail::copy_clamped(out, n, buffer,
+                              detail::itoa_signed(buffer, int32_t(value)));
+}
+
+inline auto write(char* out, size_t n, unsigned value) noexcept -> char* {
+  char buffer[uint32_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa(out, uint32_t(value));
+  return detail::copy_clamped(out, n, buffer,
+                              detail::itoa(buffer, uint32_t(value)));
+}
+
+inline auto write(char* out, size_t n, long long value) noexcept -> char* {
+  char buffer[int64_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa_signed(out, int64_t(value));
+  return detail::copy_clamped(out, n, buffer,
+                              detail::itoa_signed(buffer, int64_t(value)));
+}
+
+inline auto write(char* out, size_t n, unsigned long long value) noexcept
+    -> char* {
+  char buffer[uint64_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa(out, uint64_t(value));
+  return detail::copy_clamped(out, n, buffer,
+                              detail::itoa(buffer, uint64_t(value)));
+}
+
+inline auto write(char* out, size_t n, long value) noexcept -> char* {
+  if (sizeof(long) <= sizeof(int32_t)) return write(out, n, int(value));
+  return write(out, n, static_cast<long long>(value));
+}
+
+inline auto write(char* out, size_t n, unsigned long value) noexcept -> char* {
+  if (sizeof(unsigned long) <= sizeof(uint32_t))
+    return write(out, n, static_cast<unsigned>(value));
+  return write(out, n, static_cast<unsigned long long>(value));
+}
+
+#if ZMIJ_USE_INT128
+inline auto write(char* out, size_t n, __int128 value) noexcept -> char* {
+  char buffer[int128_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa_signed(out, value);
+  return detail::copy_clamped(out, n, buffer,
+                              detail::itoa_signed(buffer, value));
+}
+
+inline auto write(char* out, size_t n, unsigned __int128 value) noexcept
+    -> char* {
+  char buffer[uint128_buffer_size];
+  if (n >= sizeof(buffer)) return detail::itoa(out, value);
+  return detail::copy_clamped(out, n, buffer, detail::itoa(buffer, value));
+}
+#endif  // ZMIJ_USE_INT128
 
 /// Writes `value` in scientific format with `precision` digits after the
 /// decimal point (e.g. 1.234e+05) to `out`, without a null terminator, like
@@ -745,7 +940,7 @@ inline auto write_scientific(char* out, size_t n, float value,
       out, n, buffer, detail::write_scientific(buffer, value, precision + 1));
 }
 
-inline auto write_scientific(char* out, size_t n, long double value,
+inline auto write_scientific(char* out, size_t n, long_double value,
                              int precision) noexcept -> char* {
   if (double(value) == value)
     return write_scientific(out, n, double(value), precision);
@@ -789,7 +984,7 @@ inline auto write_general(char* out, size_t n, float value,
                               detail::write_general(buffer, value, precision));
 }
 
-inline auto write_general(char* out, size_t n, long double value,
+inline auto write_general(char* out, size_t n, long_double value,
                           int precision) noexcept -> char* {
   if (double(value) == value)
     return write_general(out, n, double(value), precision);
@@ -832,7 +1027,7 @@ inline auto write_fixed(char* out, size_t n, float value,
                               detail::write_fixed(buffer, value, precision));
 }
 
-inline auto write_fixed(char* out, size_t n, long double value,
+inline auto write_fixed(char* out, size_t n, long_double value,
                         int precision) noexcept -> char* {
   if (double(value) == value)
     return write_fixed(out, n, double(value), precision);
@@ -856,9 +1051,9 @@ inline auto write_hex(char* out, size_t n, float value) noexcept -> char* {
   return write_hex(out, n, double(value));
 }
 
-inline auto write_hex(char* out, size_t n, long double value) noexcept
+inline auto write_hex(char* out, size_t n, long_double value) noexcept
     -> char* {
-  char buffer[buffer_sizes<long double>::hex];
+  char buffer[buffer_sizes<long_double>::hex];
   if (n >= sizeof(buffer)) return detail::write_hex(out, value);
   return detail::copy_clamped(out, n, buffer, detail::write_hex(buffer, value));
 }

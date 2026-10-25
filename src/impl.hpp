@@ -13,29 +13,33 @@ using std::uintmax_t;
 
 // stolen from geode sorry
 
-inline uint64_t fnv1aHash(std::string_view str) {
-    uint64_t hash = 0xcbf29ce484222325;
-    for (char c : str) {
-        hash ^= c;
-        hash *= 0x100000001b3;
+namespace matjson {
+
+    inline uint64_t fnv1aHash(std::string_view str) {
+        uint64_t hash = 0xcbf29ce484222325;
+        for (char c : str) {
+            hash ^= c;
+            hash *= 0x100000001b3;
+        }
+        return hash;
     }
-    return hash;
+
+    struct StringHash {
+        using is_transparent = void;
+
+        size_t operator()(std::string_view str) const {
+            return fnv1aHash(str);
+        }
+
+        size_t operator()(std::string const& str) const {
+            return fnv1aHash(str);
+        }
+    };
+
 }
 
-struct StringHash {
-    using is_transparent = void;
-
-    size_t operator()(std::string_view str) const {
-        return fnv1aHash(str);
-    }
-
-    size_t operator()(std::string const& str) const {
-        return fnv1aHash(str);
-    }
-};
-
 using OrderedMap = tsl::ordered_map<
-    std::string, matjson::Value, StringHash, std::equal_to<>,
+    std::string, matjson::Value, matjson::StringHash, std::equal_to<>,
     std::allocator<std::pair<std::string, matjson::Value>>,
     std::vector<std::pair<std::string, matjson::Value>>>;
 
