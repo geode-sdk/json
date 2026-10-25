@@ -21,6 +21,10 @@ endif()
 CPMAddPackage("gh:geode-sdk/ordered-map#d4d347edfd26c50b9429522c9f112186d01a8698")
 
 add_library(zmij src/external/zmij.cc)
+if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "armeabi-v7a")
+    # zmij fails to compile otherwise
+    target_compile_definitions(zmij PRIVATE "ZMIJ_USE_SIMD=0")
+endif()
 
 # This option is only useful for Geode itself
 if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
