@@ -18,23 +18,37 @@ if (NOT TARGET GeodeResult)
     CPMAddPackage("gh:geode-sdk/result@1.4.1")
 endif()
 
-CPMAddPackage("gh:geode-sdk/ordered-map#d4d347edfd26c50b9429522c9f112186d01a8698")
+if (MAT_JSON_AS_INTERFACE)
+    if (MAT_JSON_BUILD_IMPL)
+        set(_build_impl ON)
+    else()
+        set(_build_impl OFF)
+    endif()
+else()
+    set(_build_impl ON)
+endif()
 
-add_library(zmij src/external/zmij.cc)
-if (DEFINED ANDROID_ABI AND ANDROID_ABI STREQUAL "armeabi-v7a")
-    # zmij fails to compile otherwise
-    target_compile_definitions(zmij PRIVATE "ZMIJ_USE_SIMD=0")
+if (_build_impl)
+    CPMAddPackage("gh:geode-sdk/ordered-map#d4d347edfd26c50b9429522c9f112186d01a8698")
+
+    add_library(zmij src/external/zmij.cc)
+    if (ANDROID_ABI STREQUAL "armeabi-v7a")
+        # zmij fails to compile otherwise
+        target_compile_definitions(zmij PRIVATE "ZMIJ_USE_SIMD=0")
+    endif()
 endif()
 
 # This option is only useful for Geode itself
-if (DEFINED MAT_JSON_AS_INTERFACE AND MAT_JSON_AS_INTERFACE)
+if (MAT_JSON_AS_INTERFACE)
     add_library(mat-json INTERFACE)
     target_include_directories(mat-json INTERFACE include)
     target_link_libraries(mat-json INTERFACE GeodeResult)
 
-    add_library(mat-json-impl INTERFACE)
-    target_link_libraries(mat-json-impl INTERFACE mat-json zmij tsl::ordered_map)
-    target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
+    if (_build_impl)
+        add_library(mat-json-impl INTERFACE)
+        target_link_libraries(mat-json-impl INTERFACE mat-json zmij tsl::ordered_map)
+        target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
+    endif()
 else()
     add_library(mat-json ${SOURCE_FILES})
 
@@ -44,6 +58,8 @@ else()
     target_link_libraries(mat-json PUBLIC GeodeResult)
     target_link_libraries(mat-json PRIVATE zmij tsl::ordered_map)
 endif()
+
+add_library(matjson ALIAS mat-json)
 
 if (PROJECT_IS_TOP_LEVEL)
     if (NOT WIN32)

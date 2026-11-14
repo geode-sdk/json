@@ -254,5 +254,4 @@ using ValuePtr = std::unique_ptr<matjson::ValueImpl>;
 
 matjson::Value* getDummyNullValue();
 
-// Every plain null has an empty m_impl, so the dummy has to be identified by address
 #define CHECK_DUMMY_NULL (this == getDummyNullValue())
