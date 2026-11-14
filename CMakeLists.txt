@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mat-json VERSION 4.0.0)
+project(mat-json VERSION 4.1.0)
 
 set(SOURCE_FILES
     src/value.cpp
