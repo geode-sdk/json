@@ -30,6 +30,7 @@ endif()
 
 if (_build_impl)
     CPMAddPackage("gh:geode-sdk/ordered-map#d4d347edfd26c50b9429522c9f112186d01a8698")
+    CPMAddPackage("gh:fastfloat/fast_float@8.3.2")
 
     add_library(zmij src/external/zmij.cc)
     if (ANDROID_ABI STREQUAL "armeabi-v7a")
@@ -46,7 +47,7 @@ if (MAT_JSON_AS_INTERFACE)
 
     if (_build_impl)
         add_library(mat-json-impl INTERFACE)
-        target_link_libraries(mat-json-impl INTERFACE mat-json zmij tsl::ordered_map)
+        target_link_libraries(mat-json-impl INTERFACE mat-json zmij tsl::ordered_map fast_float)
         target_sources(mat-json-impl INTERFACE ${SOURCE_FILES})
     endif()
 else()
@@ -56,7 +57,7 @@ else()
 
     target_include_directories(mat-json PUBLIC include)
     target_link_libraries(mat-json PUBLIC GeodeResult)
-    target_link_libraries(mat-json PRIVATE zmij tsl::ordered_map)
+    target_link_libraries(mat-json PRIVATE zmij tsl::ordered_map fast_float)
 endif()
 
 add_library(matjson ALIAS mat-json)

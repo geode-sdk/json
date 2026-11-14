@@ -1,6 +1,6 @@
 #include "impl.hpp"
 
-#include <charconv>
+#include <fast_float/fast_float.h>
 #include <iostream>
 #include <istream>
 #include <matjson.hpp>
@@ -384,19 +384,14 @@ Result<ValuePtr, ParseError> parseNumber(StringStream<S>& stream) {
     }
     auto const fromCharsHelper = [&]<class T>() -> Result<ValuePtr, ParseError> {
         T value;
-        if (auto result = std::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
-            result.ec != std::errc()) {
+        auto result = fast_float::from_chars(buffer.data(), buffer.data() + buffer.size(), value);
+        if (result.ec != std::errc()) {
             return stream.error("failed to parse number");
         }
         return Ok(std::make_unique<ValueImpl>(Type::Number, value));
     };
     if (isFloating) {
-#ifndef __cpp_lib_to_chars
-        // FIXME: std::stod is locale specific, might break on some machines
-        return Ok(std::make_unique<ValueImpl>(Type::Number, std::stod(buffer)));
-#else
         return fromCharsHelper.template operator()<double>();
-#endif
     }
     else if (isNegative) {
         return fromCharsHelper.template operator()<intmax_t>();
